@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+// Metadata for RPC over byte streams.
+//
+// This defines the metadata for a single RPC message.
+// The metadata provides framing for the body, as well
+// as information about method being called, headers, etc.
+
+// The toplevel message.
+message Meta {
+  // unique ID of a request/reply pattern.
+  int32 id = 1;
+
+  // Size of body in bytes. The body immediately follows
+  // the metadata.
+  uint32 body_size = 2;
+
+  // kind of message
+  Kind kind = 3;
+
+  // Method to call, for request. None otherwise.
+  optional string meth = 4;
+
+  // Headers. Headers are user settable and can carry
+  // just about any information, like HTTP headers.
+  repeated Header headers = 5;
+
+  // If the body is compressed, here is how it is compressed.
+  optional Compression body_compression = 6;
+}
+
+// Compression level for some message.
+enum Compression {
+  // No compression.
+  Compression_none = 0;
+
+  // Compression using deflate.
+  Compression_deflate = 1;
+}
+
+enum Kind {
+  // Invalid kind! Should not be used.
+  Invalid = 0;
+
+  // Request, sent from client.
+  Request = 1;
+
+  // Successful response to a request, from the server.
+  // The body is the encoded response, in binary format.
+  Response = 2;
+
+  // Error for a request. Body will be an encoded "Error" message,
+  // in binary format.
+  Error = 3;
+
+  // Send a stream item. This must be part of a Request where
+  // the client side sends a stream to the server side.
+  // Streams must be eventually closed using `Client_stream_close`.
+  Client_stream_item = 4;
+
+  // Close stream from client to server. This indicates that
+  // a stream previously started by a [Request] message is over.
+  Client_stream_close = 5;
+
+  // Send a stream item. This must be part of a Request where
+  // the server side sends a stream to the client side.
+  // Streams must be eventually closed using `Server_stream_close`.
+  Server_stream_item = 6;
+
+  // Close stream from server to client. This indicates that
+  // a stream previously started by a [Request] message is over.
+  Server_stream_close = 7;
+
+  // Heartbeat, to check if other side is still connected.
+  Heartbeat = 30;
+
+  // Terminate the connection.
+  // Body is always `Empty`. `id`, `meth`, etc. are unspecified.
+  Close = 400;
+}
+
+// Body of a message returned in case of error.
+message Error {
+  // error message.
+  string msg = 1;
+}
+
+/// Empty message.
+message Empty {
+}
+
+// A header, like a HTTP header. Keys should be case-independent ascii.
+message Header {
+  string key = 1;
+  string value = 2;
+}
