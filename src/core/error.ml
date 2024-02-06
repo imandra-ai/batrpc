@@ -30,6 +30,7 @@ let[@inline] mk ?ctx kind : t = { kind; ctx }
 
 exception E of t
 
+let raise_err ?ctx kind : 'a = raise (E { kind; ctx })
 let[@inline] fail ?ctx msg = raise (E { kind = Failure msg; ctx })
 let[@inline] failf ?ctx fmt = Format.kasprintf (fail ?ctx) fmt
 

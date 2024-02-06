@@ -3,7 +3,7 @@
     The server will spawn a thread per client connection, and use
     an executor to handle individual requests from each client. *)
 
-open Common_
+open Util_
 
 type t
 

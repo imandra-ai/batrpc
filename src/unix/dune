@@ -3,5 +3,5 @@
   (name batrpc_unix)
   (public_name batrpc.unix)
   (synopsis "RPC over unix sockets and pipes.")
-  (flags :standard -open Ezrpc_core)
+  (flags :standard -open Batrpc_core)
   (libraries batrpc.core threads unix))

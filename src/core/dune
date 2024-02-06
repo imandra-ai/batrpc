@@ -1,13 +1,30 @@
-
 (library
-  (name batrpc_core)
-  (public_name batrpc.core)
-  (synopsis "Binary RPC over streams of bytes for protobuf services.")
-  (flags :standard)
-  (libraries atomic logs camlzip pbrt pbrt_yojson yojson pbrt_services))
+ (name batrpc_core)
+ (public_name batrpc.core)
+ (synopsis "Binary RPC over streams of bytes for protobuf services.")
+ (flags :standard -open Batrpc_util)
+ (libraries
+  trace.core
+  atomic
+  moonpool
+  batrpc.util
+  pbrt
+  pbrt_yojson
+  yojson
+  pbrt_services))
 
 (rule
-  (targets meta.ml meta.mli)
-  (deps (:file meta.proto))
-  (mode promote)
-  (action (run ocaml-protoc --ml_out=. --services --binary --yojson --pp --make %{file})))
+ (targets meta.ml meta.mli)
+ (deps
+  (:file meta.proto))
+ (mode promote)
+ (action
+  (run
+   ocaml-protoc
+   --ml_out=.
+   --services
+   --binary
+   --yojson
+   --pp
+   --make
+   %{file})))

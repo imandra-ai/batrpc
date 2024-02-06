@@ -1,3 +1,6 @@
+let ( let@ ) = ( @@ )
+let spf = Printf.sprintf
+
 let string_of_sockaddr = function
   | Unix.ADDR_UNIX s -> spf "unix:%s" s
   | Unix.ADDR_INET (addr, port) ->

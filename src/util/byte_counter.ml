@@ -1,5 +1,3 @@
-open Common_
-
 type t = { n_bytes: int Atomic.t } [@@unboxed]
 (** Byte counter. *)
 

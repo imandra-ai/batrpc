@@ -1,5 +1,3 @@
-open Common_
-
 type ('req, 'res, 'state) client_stream_handler_with_state = {
   init: unit -> 'state;
   on_item: 'state -> 'req -> unit;

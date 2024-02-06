@@ -93,11 +93,14 @@ let write_meta_ ~enc (oc : Io.Out.t) (meta : Meta.meta) : unit =
   let buf = Pbrt.Encoder.to_bytes enc in
 
   (* size of [m] has to fit in a [u16] *)
-  if Bytes.length buf >= 1 lsl 16 then
-    Error.failf ~kind:NetworkError
-      "Batrpc: cannot send message with Metadata of size %d (max size=%d)."
-      (Bytes.length buf)
-      ((1 lsl 16) - 1);
+  if Bytes.length buf >= 1 lsl 16 then (
+    let msg =
+      spf "Batrpc: cannot send message with Metadata of size %d (max size=%d)."
+        (Bytes.length buf)
+        ((1 lsl 16) - 1)
+    in
+    Error.raise_err @@ Network_error msg
+  );
 
   (* Trace.messagef (fun k -> k "write meta: size=%d" (Bytes.length buf)); *)
 

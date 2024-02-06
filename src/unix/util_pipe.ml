@@ -1,6 +1,6 @@
 (** Mostly useful for testing: communicate via pipes *)
 
-open Common_
+open Util_
 
 let with_pipe ?close_noerr () (f : Io.In.t * Io.Out.t -> 'a) : 'a =
   let fd1, fd2 = Unix.pipe () in
