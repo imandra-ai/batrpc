@@ -4,15 +4,17 @@
 (license MIT)
 (authors "Imandra")
 (maintainers "Imandra")
-(source (github imandra-ai/ezrpc))
+(source (github imandra-ai/batrpc))
 (version 0.1)
 
 (package
-  (name ezrpc)
+  (name batrpc)
+  (synopsis "A binary RPC framework based on protobuf")
   (depends
     (ocaml (>= 4.08))
     atomic
     logs
+    camlzip
     (pbrt (>= 3.0))
     (pbrt_yojson (>= 3.0))
     (pbrt_services (>= 3.0)))
