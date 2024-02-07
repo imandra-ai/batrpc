@@ -37,3 +37,9 @@ jobs:
       - run: opam exec -- dune build @install @runtest
         if: matrix.ocaml-compiler == '5.1'
 
+      - run: opam install ocaml-protoc
+      - run: opam exec -- dune build @lint
+
+      # check that nothing changed
+      - run: git diff --exit-code
+

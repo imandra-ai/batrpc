@@ -21,6 +21,7 @@
 (rule
  (targets trivial.ml trivial.mli)
  (deps trivial.proto)
+ (alias lint)
  (mode promote)
  (action
   (run ocaml-protoc --binary --pp --yojson --services --make --ml_out ./ %{deps})))
