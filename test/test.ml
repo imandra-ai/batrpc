@@ -63,14 +63,14 @@ let services =
 
 let run_tests_on ~client () =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "run-tests" in
-  Fmt.eprintf "start tests…@.";
+  Fmt.printf "start tests…@.";
 
   let p0 = Trivial.make_pair ~x:"hello" ~y:"world" () in
   let fut_p0_swapped =
     Client.call client ~timeout_s:2. Trivial.Swapper.Client.swap p0
   in
   let p0_swapped = Fut.wait_block_exn fut_p0_swapped in
-  Fmt.eprintf "@[@[<h>swap %a@] =@ @[<h>%a@]@]@." Trivial.pp_pair p0
+  Fmt.printf "@[@[<h>swap %a@] =@ @[<h>%a@]@]@." Trivial.pp_pair p0
     Trivial.pp_pair p0_swapped;
   assert (p0_swapped.x = "world");
   assert (p0_swapped.y = "hello");
@@ -86,7 +86,7 @@ let run_tests_on ~client () =
   let p1_swapped =
     Fut.wait_block_exn fut_p1_swapped |> RPC.Error.result_of_fut_or_error
   in
-  Fmt.eprintf "after timeout: %a@."
+  Fmt.printf "after timeout: %a@."
     (RPC.Error.pp_result Trivial.pp_pair)
     p1_swapped;
   assert (
@@ -113,7 +113,7 @@ let run_tests_on ~client () =
   let p2_1 = Fut.wait_block_exn fut_p2_1 in
   assert (p2_1 = p0_swapped);
 
-  Fmt.eprintf "end tests@.";
+  Fmt.printf "end tests@.";
   ()
 
 let run_msg_test ~client () =
@@ -188,7 +188,7 @@ let run_server_stream_test ~client () : unit =
   let l = Fut.wait_block fut in
   Result.iter_error
     (fun (exn, _) ->
-      Fmt.eprintf "stream test failed with %s@." @@ Printexc.to_string exn)
+      Fmt.printf "stream test failed with %s@." @@ Printexc.to_string exn)
     l;
 
   assert (l = Ok [ 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10 ]);
@@ -258,7 +258,7 @@ let t_tcp () =
 
   (* background thread to accept connection *)
   let t_server = Thread.create RPC.Tcp_server.run server in
-  Fmt.eprintf "listening on port %d@." port;
+  Fmt.printf "listening on port %d@." port;
   let@ () =
     Fun.protect ~finally:(fun () ->
         Trace.message "join server";
@@ -340,5 +340,5 @@ let () =
     t_tcp ();
     Trace.message "end main"
   with RPC.Error.E err ->
-    Fmt.eprintf "error: %a@." RPC.Error.pp err;
+    Fmt.printf "error: %a@." RPC.Error.pp err;
     exit 1
