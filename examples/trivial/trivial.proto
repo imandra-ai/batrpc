@@ -1,0 +1,26 @@
+
+
+syntax = "proto3";
+
+message Pair {
+  string x = 1;
+  string y = 2;
+  optional float artificial_delay_s = 3;
+}
+
+message BigString {
+  string msg = 1;
+}
+
+message Count {
+  int32 count = 1;
+}
+
+message SingleInt {
+  int32 i = 0;
+}
+
+service Swapper {
+  rpc swap(Pair) returns (Pair);
+  rpc count_chars(BigString) returns (Count);
+}

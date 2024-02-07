@@ -151,28 +151,27 @@ Let's write a TCP client.
 let (let@) = (@@)
 let port = 12345
 
-let() =
-  (* create a thread pool *)
-  let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
+module RPC = Batrpc
+module Client = RPC.Basic_client
+module Fut = Moonpool.Fut
 
+let () =
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
+  let timer = RPC.Simple_timer.create () in
 
   Printf.printf "connecting...\n%!";
   let client : Client.t =
-    RPC.Tcp_client.connect ~active ~runner ~timer addr |> RPC.Error.unwrap
+    RPC.Tcp_client.connect ~timer addr |> RPC.Error.unwrap
   in
-  let@ () =
-    Fun.protect ~finally:(fun () -> Client.close_and_join client)
-  in
+  let@ () = Fun.protect ~finally:(fun () -> Client.close_and_join client) in
 
-  let pair =
-    Trivial.make_pair ~x:"hello" ~y:"world" ()
-  in
+  let pair = Trivial.make_pair ~x:"hello" ~y:"world" () in
   Format.printf "pair: %a@." Trivial.pp_pair pair;
 
   let fut_pair_swapped : Trivial.pair Moonpool.Fut.t =
     Client.call client ~timeout_s:2. Trivial.Swapper.Client.swap pair
   in
+
   (* the request is in-flight, we can do other things here … *)
 
   (* now wait for the result *)
@@ -185,10 +184,36 @@ let() =
 ### Server side
 
 ```ocaml
-let (let@) = (@@)
+let ( let@ ) = ( @@ )
 let port = 12345
 
-let() =
+module RPC = Batrpc
+module Fut = Moonpool.Fut
+
+(* this is where we implement the actual logic for the services *)
+
+let trivial_service =
+  Trivial.Swapper.Server.make
+    ~swap:(fun rpc ->
+      RPC.mk_handler rpc @@ fun (p : Trivial.pair) ->
+      let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.swap" in
+      Fut.return @@ Trivial.make_pair ~x:p.y ~y:p.x ())
+    ~count_chars:(fun rpc ->
+      RPC.mk_handler rpc @@ fun (msg : Trivial.big_string) ->
+      let n = String.length msg.msg in
+      Fut.return @@ Trivial.make_count ~count:(Int32.of_int n) ())
+    ()
+
+(* we could host multiple services, here we only have one *)
+let services = [ trivial_service ]
+
+let () =
+  let active = RPC.Simple_switch.create () in
+  let timer = RPC.Simple_timer.create () in
+
+  (* we need a thread pool to run the tasks *)
+  let@ runner = Moonpool.Ws_pool.with_ ~num_threads:8 () in
+
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
   let server : RPC.Tcp_server.t =
     RPC.Tcp_server.create ~active ~runner ~timer ~services addr
@@ -196,7 +221,7 @@ let() =
   in
 
   (* background thread to accept connection *)
-  Fmt.eprintf "listening on port %d@." port;
+  Format.eprintf "listening on port %d@." port;
   RPC.Tcp_server.run server
 ```
 
