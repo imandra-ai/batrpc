@@ -15,6 +15,7 @@
     atomic
     logs
     camlzip
+    (moonpool (>= 0.5))
     (containers (and (>= 3.0) :with-test))
     (trace :with-test)
     (trace-tef :with-test)
