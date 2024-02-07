@@ -1,5 +1,7 @@
 # BatRPC
 
+[![Build and Test](https://github.com/imandra-ai/batrpc/actions/workflows/main.yml/badge.svg)](https://github.com/imandra-ai/batrpc/actions/workflows/main.yml)
+
 This is a RPC framework for OCaml, based on protobuf as a wire format.
 
 ## Overview
