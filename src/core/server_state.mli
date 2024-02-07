@@ -2,26 +2,65 @@
 
 open Common_
 
-type t [@@deriving show]
+type t
 (** Server side for a given connection to a client *)
 
+val pp : Format.formatter -> t -> unit
+val show : t -> string
+
+type handler = Server_handler.t
+
+val mk_handler :
+  ( 'req,
+    Service.Value_mode.unary,
+    'res,
+    Service.Value_mode.unary )
+  Service.Server.rpc ->
+  ('req -> 'res Fut.t) ->
+  handler
+(** Make a simple request/reply handler *)
+
+val mk_client_stream_handler :
+  ( 'req,
+    Service.Value_mode.stream,
+    'res,
+    Service.Value_mode.unary )
+  Service.Server.rpc ->
+  init:(unit -> 'state) ->
+  on_item:('state -> 'req -> unit) ->
+  on_close:('state -> 'res) ->
+  unit ->
+  handler
+(** Make a handler for client-stream requests. The handler is
+ a state machine that reacts to new stream elements and returns
+ a response upon stream closure. *)
+
+val mk_server_stream_handler :
+  ( 'req,
+    Service.Value_mode.unary,
+    'res,
+    Service.Value_mode.stream )
+  Service.Server.rpc ->
+  ('req -> 'res Push_stream.t -> unit) ->
+  handler
+(** Make a handler for server-stream. The handler can push values
+   back to the client. The request ends when the stream
+   is closed by the handler. *)
+
 val create :
-  ?middlewares:Middleware.Sync.t list ->
-  services:Service.Server.t list ->
+  ?middlewares:Middleware.t list ->
+  services:handler Service.Server.t list ->
   unit ->
   t
 
-val add_middleware : t -> Middleware.Sync.t -> unit
-
-val add_service : t -> Service.Server.t -> unit
-
-val list_services : t -> Service.Server.t list
-
-val find_meth : t -> string -> Service.Server.any_rpc option
+val add_middleware : t -> Middleware.t -> unit
+val add_service : t -> handler Service.Server.t -> unit
+val list_services : t -> handler Service.Server.t list
+val find_meth : t -> string -> handler option
 
 val handle_request :
   t ->
-  executor:Executor.t ->
+  runner:Runner.t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:Io.In.t ->
@@ -32,7 +71,7 @@ val handle_request :
     of type [Meta.Request].
     Handle this by running (in the current thread) the
     corresponding handler and reply to it.
-  @param executor where to spawn the handler for this request? *)
+  @param runner where to spawn the handler for this request? *)
 
 val handle_stream_item :
   t ->

@@ -1,3 +1,7 @@
+module Runner = Moonpool.Runner
+module Service = Pbrt_services
+module Fut = Moonpool.Fut
+
 let ( let@ ) = ( @@ )
 let spf = Printf.sprintf
 

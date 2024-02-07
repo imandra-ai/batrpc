@@ -6,7 +6,7 @@ type 'a t
 val create : 'a -> 'a t
 (** Create a new protected value. *)
 
-val with_ : 'a t -> ('a -> 'b) -> 'b
+val with_lock : 'a t -> ('a -> 'b) -> 'b
 (** [with_ l f] runs [f x] where [x] is the value protected with
     the lock [l], in a critical section. If [f x] fails, [with_lock l f]
     fails too but the lock is released. *)

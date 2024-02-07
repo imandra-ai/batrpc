@@ -13,12 +13,18 @@ depends: [
   "atomic"
   "logs"
   "camlzip"
+  "containers" {>= "3.0" & with-test}
+  "trace" {with-test}
+  "trace-tef" {with-test}
   "pbrt" {>= "3.0"}
   "pbrt_yojson" {>= "3.0"}
   "pbrt_services" {>= "3.0"}
   "odoc" {with-doc}
 ]
-depopts: ["base-unix"]
+depopts: [
+  "mtime" {>= "2.0"}
+  "base-unix"
+]
 build: [
   ["dune" "subst"] {dev}
   [

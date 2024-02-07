@@ -89,7 +89,7 @@ message Error {
 message Empty {
 }
 
-// A header, like a HTTP header. Keys should be case-independent ascii.
+// A header, like a HTTP header. Keys should be case-insensitive ascii.
 message Header {
   string key = 1;
   string value = 2;

@@ -1,8 +1,15 @@
-
 (library
-  (name batrpc_util)
-  (public_name batrpc.util)
-  (synopsis "Utils for batrpc")
-  (private_modules common_util_)
-  (flags :standard)
-  (libraries trace.core atomic logs camlzip))
+ (name batrpc_util)
+ (public_name batrpc.util)
+ (synopsis "Utils for batrpc")
+ (private_modules common_util_)
+ (libraries
+  atomic
+  logs
+  camlzip
+  (select
+   tracing_.ml
+   from
+   (trace.core -> tracing_.real.ml)
+   (-> tracing_.dummy.ml)))
+ (flags :standard))

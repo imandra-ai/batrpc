@@ -15,8 +15,12 @@
     atomic
     logs
     camlzip
+    (containers (and (>= 3.0) :with-test))
+    (trace :with-test)
+    (trace-tef :with-test)
     (pbrt (>= 3.0))
     (pbrt_yojson (>= 3.0))
     (pbrt_services (>= 3.0)))
   (depopts
+    (mtime (>= 2.0))
     base-unix))

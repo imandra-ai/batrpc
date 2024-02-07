@@ -57,7 +57,7 @@ let read_body_res ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta)
   assert (meta.kind = Meta.Response || meta.kind = Meta.Server_stream_item);
   read_with_dec_ ic ~buf_pool ~meta ~what:"response" ~f_dec:rpc.decode_pb_res
 
-let read_error ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta) =
+let read_error ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta) : Meta.error =
   let@ () =
     Error.guardf (fun k -> k "Batrpc: reading the error for call %ld" meta.id)
   in
@@ -123,7 +123,9 @@ let write_with_ ?buf_pool ?enc (oc : Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
 
   let body_str, body_compression =
     if Bytes.length body_str > compression_threshold then
-      let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "framing.compress-body" in
+      let@ _sp =
+        Tracing_.with_span ~__FILE__ ~__LINE__ "framing.compress-body"
+      in
       Util_zlib.compress body_str, Some Meta.Compression_deflate
     else
       body_str, None

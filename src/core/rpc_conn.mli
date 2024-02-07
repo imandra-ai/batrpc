@@ -15,23 +15,20 @@ val create :
   ?client_state:Client_state.t ->
   ?buf_pool:Buf_pool.t ->
   ?active:Switch.t ->
-  executor:Executor.t ->
+  runner:Runner.t ->
   timer:Timer.t ->
   ic:Io.In.t ->
   oc:Io.Out.t ->
   unit ->
   t
 
+type handler = Server_state.handler
+
 val close_and_join : t -> unit
-
 val close_without_joining : t -> unit
-
 val server_state : t -> Server_state.t
-
 val client_state : t -> Client_state.t
-
-val add_service : t -> Service.Server.t -> unit
-
+val add_service : t -> handler Service.Server.t -> unit
 val on_close : t -> unit Fut.t
 
 exception Closed
@@ -58,7 +55,7 @@ val call_client_stream :
     'res,
     Service.Value_mode.unary )
   Service.Client.rpc ->
-  'req Service.Push_stream.t * 'res Fut.t
+  'req Push_stream.t * 'res Fut.t
 
 val call_server_stream :
   t ->

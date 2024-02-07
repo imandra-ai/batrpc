@@ -31,7 +31,7 @@ let[@inline] remove_from_tbl_ (self : state) id : unit =
   Int32_tbl.remove self.in_flight id
 
 let add_middleware self m : unit =
-  let@ self = Lock.with_ self.st in
+  let@ self = Lock.with_lock self.st in
   self.middlewares <- m :: self.middlewares
 
 (** Handle a message of "response" type *)
@@ -39,7 +39,7 @@ let handle_response (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
   (* Trace.message "bin-rpc.client.handle-res"; *)
   assert (meta.kind = Meta.Response);
 
-  let@ self = Lock.with_ self.st in
+  let@ self = Lock.with_lock self.st in
   match Int32_tbl.find_opt self.in_flight meta.id with
   | None ->
     Log.err (fun k ->
@@ -60,7 +60,7 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
   assert (meta.kind = Meta.Server_stream_item);
 
   let todo =
-    let@ self = Lock.with_ self.st in
+    let@ self = Lock.with_lock self.st in
     match Int32_tbl.find_opt self.in_flight meta.id with
     | None ->
       Log.err (fun k ->
@@ -87,7 +87,7 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
   assert (meta.kind = Meta.Server_stream_close);
 
   let todo =
-    let@ self = Lock.with_ self.st in
+    let@ self = Lock.with_lock self.st in
     match Int32_tbl.find_opt self.in_flight meta.id with
     | None ->
       Framing.read_and_discard ~buf_pool ~meta ic;
@@ -115,7 +115,7 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
 
 (** Handle a message of "error" type *)
 let handle_error (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
-  let@ self = Lock.with_ self.st in
+  let@ self = Lock.with_lock self.st in
   match Int32_tbl.find_opt self.in_flight meta.id with
   | None ->
     Framing.read_and_discard ~buf_pool ~meta ic;
@@ -123,26 +123,26 @@ let handle_error (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
   | Some (IF_unary { promise; bt; _ }) ->
     remove_from_tbl_ self meta.id;
     let err = Framing.read_error ~buf_pool ic ~meta in
-    let err = Error.mk_error ~kind:RpcError err.msg in
+    let err = Error.mk @@ Error.Rpc_error err in
     Fut.fulfill_idempotent promise (Error (Error.E err, bt))
   | Some (IF_stream { bt; promise; _ }) ->
     remove_from_tbl_ self meta.id;
     let err = Framing.read_error ~buf_pool ic ~meta in
-    let err = Error.mk_error ~kind:RpcError err.msg in
+    let err = Error.mk @@ Error.Rpc_error err in
     Fut.fulfill_idempotent promise (Error (Error.E err, bt))
 
 let handle_timeout (self : t) id : unit =
-  let@ self = Lock.with_ self.st in
+  let@ self = Lock.with_lock self.st in
   let entry = Int32_tbl.find_opt self.in_flight id in
   Option.iter
     (function
       | IF_unary { promise; bt; _ } ->
         remove_from_tbl_ self id;
-        let err = Error.mk_error ~kind:Timeout "Request timed out." in
+        let err = Error.mk Error.Timeout in
         Fut.fulfill_idempotent promise (Error (Error.E err, bt))
       | IF_stream { promise; bt; _ } ->
         remove_from_tbl_ self id;
-        let err = Error.mk_error ~kind:Timeout "Request timed out." in
+        let err = Error.mk Error.Timeout in
         Fut.fulfill_idempotent promise (Error (Error.E err, bt)))
     entry
 
@@ -191,7 +191,7 @@ let send_request_ ?buf_pool ~oc ~meta ~rpc req : unit =
   let@ enc = with_pbrt_enc_ ?buf_pool () in
   Pbrt.Encoder.clear enc;
 
-  let@ oc = Lock.with_ oc in
+  let@ oc = Lock.with_lock oc in
   Framing.write_req ~enc oc rpc meta req;
   oc#flush ()
 
@@ -208,7 +208,7 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~headers ~timeout_s () :
 
   let id, meta =
     (* critical section to update internal state *)
-    let@ self = Lock.with_ self.st in
+    let@ self = Lock.with_lock self.st in
     prepare_query_ self ~rpc ~headers ~in_flight ()
   in
 
@@ -256,7 +256,7 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
 
   let id, meta =
     (* critical section to update internal state *)
-    let@ self = Lock.with_ self.st in
+    let@ self = Lock.with_lock self.st in
     prepare_query_ self ~rpc ~headers ~in_flight ()
   in
 
@@ -271,14 +271,14 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
     let@ enc = with_pbrt_enc_ ?buf_pool () in
     Pbrt.Encoder.clear enc;
 
-    let@ oc = Lock.with_ oc in
+    let@ oc = Lock.with_lock oc in
     Framing.write_empty ~enc oc meta ();
     oc#flush ()
   in
 
   let send_item item : unit =
     let@ _sp =
-      Trace.with_span ~__FILE__ ~__LINE__
+      Tracing_.with_span ~__FILE__ ~__LINE__
         "bin-rpc.client.send-client-stream-item"
     in
     let meta =
@@ -288,14 +288,14 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
     let@ enc = with_pbrt_enc_ ?buf_pool () in
     Pbrt.Encoder.clear enc;
 
-    let@ oc = Lock.with_ oc in
+    let@ oc = Lock.with_lock oc in
     Framing.write_req ~enc oc rpc meta item;
     oc#flush ()
   in
 
   let send_close () : unit =
     let@ _sp =
-      Trace.with_span ~__FILE__ ~__LINE__
+      Tracing_.with_span ~__FILE__ ~__LINE__
         "bin-rpc.client.send-client-stream-close"
     in
     let meta =
@@ -305,7 +305,7 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
     let@ enc = with_pbrt_enc_ ?buf_pool () in
     Pbrt.Encoder.clear enc;
 
-    let@ oc = Lock.with_ oc in
+    let@ oc = Lock.with_lock oc in
     Framing.write_empty ~enc oc meta ();
     oc#flush ()
   in
@@ -332,7 +332,7 @@ let call_server_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
 
   let id, meta =
     (* critical section to update internal state *)
-    let@ self = Lock.with_ self.st in
+    let@ self = Lock.with_lock self.st in
     prepare_query_ self ~rpc ~headers ~in_flight ()
   in
 

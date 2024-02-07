@@ -4,7 +4,6 @@
  (synopsis "Binary RPC over streams of bytes for protobuf services.")
  (flags :standard -open Batrpc_util)
  (libraries
-  trace.core
   atomic
   moonpool
   batrpc.util

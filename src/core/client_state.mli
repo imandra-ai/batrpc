@@ -2,9 +2,13 @@ open Common_
 module Push_stream = Push_stream
 
 type t
+(** Client-side state. This tracks the state of
+    in-flight requests and active streams. *)
+
+val create : ?middlewares:Middleware.t list -> unit -> t
+(** New client state *)
 
 val add_middleware : t -> Middleware.t -> unit
-val create : ?middlewares:Middleware.t list -> unit -> t
 
 val handle_response :
   t -> buf_pool:Buf_pool.t -> meta:Meta.meta -> ic:Io.In.t -> unit -> unit
@@ -49,9 +53,9 @@ val call_client_stream :
   'req Push_stream.t * 'res Fut.t
 (** Call a RPC method that takes a client stream.
     This returns a pair [stream, res]; you can then push items
-  onto the stream using {!Push_stream.push}. When it's done,
-  call {!Push_stream.close} and the future will resolve once the
-  server has processed it. *)
+    onto the stream using {!Push_stream.push}. When it's done,
+    call {!Push_stream.close} and the future will resolve once the
+    server has processed it. *)
 
 val call_server_stream :
   t ->

@@ -3,5 +3,9 @@
   (name batrpc_unix)
   (public_name batrpc.unix)
   (synopsis "RPC over unix sockets and pipes.")
-  (flags :standard -open Batrpc_core)
-  (libraries batrpc.core threads unix))
+  (flags :standard -open Batrpc_core -open Batrpc_util)
+  (libraries batrpc.core threads unix
+             (select time.ml from
+                     (mtime mtime.os.clock -> time.mtime.ml)
+                     (-> time.unix.ml))
+             ))

@@ -23,12 +23,12 @@ let tracing : t =
     handle =
       (fun ~service_name (h : _ Handler.t) rpc req ->
         let _sp =
-          Trace.enter_span ~__FILE__ ~__LINE__ "rpc-handler" ~data:(fun () ->
+          Tracing_.enter_span ~__FILE__ ~__LINE__ "rpc-handler" ~data:(fun () ->
               [ "service", `String service_name; "meth", `String rpc.rpc_name ])
         in
 
         let fut = h rpc req in
-        Fut.on_result fut (fun _ -> Trace.exit_span _sp);
+        Fut.on_result fut (fun _ -> Tracing_.exit_span _sp);
 
         fut);
   }

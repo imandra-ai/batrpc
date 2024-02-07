@@ -13,16 +13,12 @@ let create :
     t =
  fun ?client_state ?buf_pool ?active ~timer ~ic ~oc () : t ->
   (* no need for a fancy executor, we won't be serving stuff to the other side *)
-  let executor = Executor.immediate_local () in
-  Rpc_conn.create ?server_state:None ?client_state ?buf_pool ~executor ?active
+  let runner = Moonpool.Immediate_runner.runner in
+  Rpc_conn.create ?server_state:None ?client_state ?buf_pool ~runner ?active
     ~timer ~ic ~oc ()
 
 let close_and_join = Rpc_conn.close_and_join
-
 let close_without_joining = Rpc_conn.close_without_joining
-
 let call = Rpc_conn.call
-
 let call_client_stream = Rpc_conn.call_client_stream
-
 let call_server_stream = Rpc_conn.call_server_stream
