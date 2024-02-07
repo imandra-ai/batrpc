@@ -1,0 +1,12 @@
+
+(test
+  (name test)
+  (flags :standard -w -32-44)
+  (libraries moonpool containers trace trace-tef batrpc))
+
+(rule
+ (targets trivial.ml trivial.mli)
+ (deps trivial.proto)
+ (mode promote)
+ (action
+  (run ocaml-protoc --binary --pp --yojson --services --make --ml_out ./ %{deps})))

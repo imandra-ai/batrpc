@@ -1,0 +1,33 @@
+
+syntax = "proto3";
+
+message Pair {
+  string x = 1;
+  string y = 2;
+  optional float artificial_delay_s = 3;
+}
+
+message BigString {
+  string msg = 1;
+}
+
+message Count {
+  int32 count = 1;
+}
+
+message SingleInt {
+  int32 i = 0;
+}
+
+service Swapper {
+  rpc swap(Pair) returns (Pair);
+  rpc count_chars(BigString) returns (Count);
+}
+
+service Beancount {
+  // Sum of the stream
+  rpc add_stream(stream SingleInt) returns (Count);
+
+  // Returns i, i-1, i-2, …, 0
+  rpc get_smaller_ints(Count) returns (stream SingleInt);
+}
