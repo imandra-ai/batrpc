@@ -35,6 +35,9 @@ jobs:
       - run: opam exec -- dune build @install --ignore-promoted-rules
       - run: opam exec -- dune runtest --ignore-promoted-rules
 
+      - run: opam install trace trace-tef mtime
+      - run: opam exec -- dune build @install @runtest --ignore-promoted-rules
+
       - run: opam install ocaml-protoc
       - run: opam exec -- dune build @lint
 
