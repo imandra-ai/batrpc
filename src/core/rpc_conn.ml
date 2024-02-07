@@ -71,6 +71,8 @@ let close_and_join self = close_ ~join_bg:true self
 (** Close from inside the background worker. Can't join itself. *)
 let close_without_joining (self : t) : unit = close_ ~join_bg:false self
 
+let wait_block_close self : unit = Fut.wait_block_exn self.on_close
+
 let handle_close (self : t) : unit =
   Log.info (fun k -> k "Bin_rpc.conn: remote side closed the connection");
   Atomic.set self.other_side_did_close true;

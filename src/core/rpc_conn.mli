@@ -25,11 +25,28 @@ val create :
 type handler = Server_state.handler
 
 val close_and_join : t -> unit
+(** [close_and_join rpc] closes the connection and waits for the
+    background thread to finish *)
+
 val close_without_joining : t -> unit
+(** [close_without_joining rpc] closes the connection
+    but immediately returns. *)
+
 val server_state : t -> Server_state.t
+(** State for the server end of this connection *)
+
 val client_state : t -> Client_state.t
+(** State for the client end of this connection *)
+
 val add_service : t -> handler Service.Server.t -> unit
+(** Add some server-side service to this connection *)
+
 val on_close : t -> unit Fut.t
+(** Future to wait for this to close *)
+
+val wait_block_close : t -> unit
+(** [wait_block_close rpc] is [Fut.wait_block_exn @@ on_close rpc].
+    Be careful with deadlocks. *)
 
 exception Closed
 
