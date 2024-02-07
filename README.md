@@ -44,7 +44,9 @@ they have distinct names.
 <details>
 <summary>A basic example, fully worked out</summary>
 
-Given this file (see `test/trivial.proto`):
+The code is in `examples/trivial`.
+
+Given this file (see `examples/trivial/trivial.proto`):
 
 ```proto
 message Pair {
