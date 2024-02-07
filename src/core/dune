@@ -13,6 +13,7 @@
   pbrt_services))
 
 (rule
+ (alias lint)
  (targets meta.ml meta.mli)
  (deps
   (:file meta.proto))

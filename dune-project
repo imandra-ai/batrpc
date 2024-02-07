@@ -19,7 +19,7 @@
     (containers (and (>= 3.0) :with-test))
     (trace :with-test)
     (trace-tef :with-test)
-    (ocaml-protoc (and (>= 3.0) (< 4.0)))
+    ;(ocaml-protoc (and (>= 3.0) (< 4.0)))
     (pbrt (>= 3.0))
     (pbrt_yojson (>= 3.0))
     (pbrt_services (>= 3.0)))
