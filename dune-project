@@ -11,7 +11,7 @@
   (name batrpc)
   (synopsis "A binary RPC framework based on protobuf")
   (depends
-    (ocaml (>= 4.08))
+    (ocaml (>= 4.14))
     atomic
     logs
     camlzip

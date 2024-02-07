@@ -9,7 +9,7 @@ homepage: "https://github.com/imandra-ai/batrpc"
 bug-reports: "https://github.com/imandra-ai/batrpc/issues"
 depends: [
   "dune" {>= "3.0"}
-  "ocaml" {>= "4.08"}
+  "ocaml" {>= "4.14"}
   "atomic"
   "logs"
   "camlzip"
