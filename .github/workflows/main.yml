@@ -32,10 +32,8 @@ jobs:
           allow-prerelease-opam: true
 
       - run: opam install -t batrpc --deps-only
-      - run: opam exec -- dune build @install
-      - run: opam exec -- dune runtest
-      - run: opam exec -- dune build @install @runtest
-        if: matrix.ocaml-compiler == '5.1'
+      - run: opam exec -- dune build @install --ignore-promoted-rules
+      - run: opam exec -- dune runtest --ignore-promoted-rules
 
       - run: opam install ocaml-protoc
       - run: opam exec -- dune build @lint
