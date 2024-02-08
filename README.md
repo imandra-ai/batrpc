@@ -33,7 +33,7 @@ they have distinct names.
 - messages carry headers, ie pairs of strings, pretty much like HTTP headers.
 - middlewares on the server side. A middleware can take an incoming request
     and its future reply, and insert metadata in headers, perform logging, tracing, etc.
-- baked-on concurrency using [moonpool](https://github.com/c-cube/moonpool/) as a
+- baked-in concurrency using [moonpool](https://github.com/c-cube/moonpool/) as a
     thread pool and future library.
 - kinds of requests:
     * [x] simple request/response
