@@ -20,6 +20,8 @@ module Byte_counter = Batrpc_util.Byte_counter
 module Meta = Meta
 module Log_rpc = Common_.Log
 
+type handler = Server_state.handler
+
 let mk_handler = Server_state.mk_handler
 let mk_server_stream_handler = Server_state.mk_server_stream_handler
 let mk_client_stream_handler = Server_state.mk_client_stream_handler
