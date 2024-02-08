@@ -99,7 +99,7 @@ let write_meta_ ~enc (oc : Io.Out.t) (meta : Meta.meta) : unit =
         (Bytes.length buf)
         ((1 lsl 16) - 1)
     in
-    Error.raise_err @@ Network_error msg
+    Error.raise_err (Network_error msg)
   );
 
   (* Trace.messagef (fun k -> k "write meta: size=%d" (Bytes.length buf)); *)
