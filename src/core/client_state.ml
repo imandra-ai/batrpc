@@ -146,9 +146,9 @@ let handle_timeout (self : t) id : unit =
         Fut.fulfill_idempotent promise (Error (Error.E err, bt)))
     entry
 
-let apply_middleware (rpc : _ Service.Client.rpc) (h : _ Handler.t)
-    (m : Middleware.t) : _ Handler.t =
-  m.handle ~service_name:rpc.service_name h
+let[@inline] apply_middleware (h : _ Handler.t) (m : Middleware.t) : _ Handler.t
+    =
+  m.handle h
 
 let create ?(middlewares = []) () : t =
   {
@@ -232,7 +232,7 @@ let call (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t) ?(headers = [])
     mk_unary_handler self ?buf_pool ~timer ~oc ~headers ~timeout_s ()
   in
   let handler =
-    List.fold_left (apply_middleware rpc) initial_handler
+    List.fold_left apply_middleware initial_handler
       (Lock.get self.st).middlewares
   in
 
