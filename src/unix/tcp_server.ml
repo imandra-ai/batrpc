@@ -20,9 +20,11 @@ let terminate self : unit =
     try Unix.close self.sock with _ -> ()
   )
 
+let add_middleware self m = Server_state.add_middleware self.st m
+
 let create ?server_state ?(on_new_client = fun _ _ -> ())
-    ?(config_socket = ignore) ?(reuseaddr = true) ~active ~runner ~timer
-    ~services (addr : Unix.sockaddr) : t Error.result =
+    ?(config_socket = ignore) ?(reuseaddr = true) ?(middlewares = []) ~active
+    ~runner ~timer ~services (addr : Unix.sockaddr) : t Error.result =
   let@ () = Error.try_with in
   let kind = Util_.kind_of_sockaddr addr in
   let sock = Unix.socket kind Unix.SOCK_STREAM 0 in
@@ -62,6 +64,7 @@ let create ?server_state ?(on_new_client = fun _ _ -> ())
       alive_conns = Atomic.make 0;
     }
   in
+  List.iter (add_middleware self) middlewares;
 
   Switch.on_turn_off active (fun () -> terminate self);
   self
