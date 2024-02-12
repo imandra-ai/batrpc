@@ -5,4 +5,4 @@
   (synopsis "OTEL middleware for batrpc")
   (optional)
   (flags :standard -open Batrpc -open Moonpool)
-  (libraries batrpc opentelemetry))
+  (libraries batrpc moonpool opentelemetry))

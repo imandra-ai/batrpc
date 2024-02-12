@@ -1,8 +1,11 @@
-
 (library
-  (name batrpc)
-  (public_name batrpc)
-  (synopsis "Binary RPC over streams of bytes for protobuf services.")
-  (flags :standard -open Batrpc_core)
-  (libraries pbrt pbrt_services unix batrpc.core batrpc.unix))
-
+ (name batrpc)
+ (public_name batrpc)
+ (synopsis "Binary RPC over streams of bytes for protobuf services.")
+ (flags :standard -open Batrpc_core)
+ (libraries
+  (re_export pbrt)
+  (re_export pbrt_services)
+  unix
+  (re_export batrpc.core)
+  (re_export batrpc.unix)))
