@@ -29,7 +29,7 @@ type ('req, 'res) bidirectional_stream_handler =
 [@@unboxed]
 
 type ('req, 'res) handler_with_ty =
-  | Unary of ('req -> 'res Fut.t)
+  | Unary of ('req, 'res) Handler.t
   | Client_stream of ('req, 'res) client_stream_handler
   | Server_stream of ('req, 'res) server_stream_handler
   | Bidirectional_stream of ('req, 'res) bidirectional_stream_handler

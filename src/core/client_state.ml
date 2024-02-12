@@ -5,7 +5,7 @@ module Push_stream = Push_stream
 type in_flight =
   | IF_unary : {
       rpc: (_, _, 'res, _) Service.Client.rpc;
-      promise: 'res Fut.promise;
+      promise: (headers * 'res) Fut.promise;
       bt: Printexc.raw_backtrace;
     }
       -> in_flight
@@ -48,7 +48,7 @@ let handle_response (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
   | Some (IF_unary { rpc; promise; _ }) ->
     remove_from_tbl_ self meta.id;
     let res = Framing.read_body_res ~buf_pool ic rpc ~meta in
-    Fut.fulfill_idempotent promise (Ok res)
+    Fut.fulfill_idempotent promise (Ok (meta.headers, res))
   | Some (IF_stream _) ->
     remove_from_tbl_ self meta.id;
     Framing.read_and_discard ~buf_pool ~meta ic;
@@ -195,9 +195,9 @@ let send_request_ ?buf_pool ~oc ~meta ~rpc req : unit =
   Framing.write_req ~enc oc rpc meta req;
   oc#flush ()
 
-let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~headers ~timeout_s rpc :
+let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~timeout_s rpc :
     _ Handler.t =
- fun req : _ Fut.t ->
+ fun headers req : _ Fut.t ->
   (* TODO: can we just avoid that? *)
   let bt = Printexc.get_callstack 5 in
 
@@ -223,14 +223,14 @@ let default_timeout_s_ : float = 30.
 let call (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t) ?(headers = [])
     ?(timeout_s = default_timeout_s_) rpc req : _ Fut.t =
   let initial_handler =
-    mk_unary_handler self ?buf_pool ~timer ~oc ~headers ~timeout_s rpc
+    mk_unary_handler self ?buf_pool ~timer ~oc ~timeout_s rpc
   in
   let handler =
     List.fold_left (apply_middleware rpc) initial_handler
       (Lock.get self.st).middlewares
   in
 
-  handler req
+  handler headers req |> Fut.map ~f:snd
 
 let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
     ?(headers = []) ?timeout_s
@@ -305,6 +305,7 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
   in
 
   let stream = { Push_stream.push = send_item; close = send_close } in
+  let fut = fut |> Fut.map ~f:snd in
   stream, fut
 
 let call_server_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)

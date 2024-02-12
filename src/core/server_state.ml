@@ -3,7 +3,13 @@ open Server_handler
 
 type handler = Server_handler.t
 
-let mk_handler rpc f : handler = Handler { rpc; h = Unary f }
+let mk_handler rpc f : handler =
+  let open Fut.Infix in
+  let f_as_handler _headers req =
+    let+ res = f req in
+    [], res
+  in
+  Handler { rpc; h = Unary f_as_handler }
 
 let mk_client_stream_handler rpc ~init ~on_item ~on_close () : handler =
   let h = Client_stream_handler { init; on_item; on_close } in
@@ -97,12 +103,11 @@ let send_nothing_or_error ~buf_pool ~oc ~(meta : Meta.meta)
   | Error err -> send_error ~buf_pool ~oc ~meta err
 
 let send_response_or_error ~buf_pool ~oc ~(meta : Meta.meta) ~rpc
-    (res : _ Error.result) : unit =
+    ?(headers = []) (res : _ Error.result) : unit =
   match res with
   | Ok res ->
     let meta =
-      Meta.make_meta ~id:meta.id ~kind:Meta.Response ~body_size:0l ~headers:[]
-        ()
+      Meta.make_meta ~id:meta.id ~kind:Meta.Response ~body_size:0l ~headers ()
     in
 
     (* send response, atomically *)
@@ -144,11 +149,12 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
   in
   assert (meta.kind = Meta.Request);
 
-  let compute_res_and_reply rpc f req : unit =
-    let fut = f req in
+  let compute_res_and_reply rpc f headers req : unit =
+    let fut = f headers req in
     (* when [fut] is done, send result *)
     Fut.on_result fut (function
-      | Ok _ as res -> send_response_or_error ~buf_pool ~oc ~meta ~rpc res
+      | Ok (headers, res) ->
+        send_response_or_error ~buf_pool ~oc ~meta ~rpc ~headers (Ok res)
       | Error (exn, bt) ->
         let res = Error (Error.of_exn ~bt exn) in
         send_response_or_error ~buf_pool ~oc ~meta ~rpc res)
@@ -191,7 +197,8 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
           initial_handler (Lock.get self.st).middlewares
       in
 
-      Runner.run_async runner (fun () -> compute_res_and_reply rpc handler req)
+      Runner.run_async runner (fun () ->
+          compute_res_and_reply rpc handler meta.headers req)
     | Some
         ( _,
           Handler

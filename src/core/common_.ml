@@ -19,3 +19,6 @@ end)
 
 let ( let@ ) = ( @@ )
 let spf = Printf.sprintf
+
+type header = Meta.header
+type headers = header list

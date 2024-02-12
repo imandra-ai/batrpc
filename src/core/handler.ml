@@ -1,4 +1,6 @@
 open Common_
 
-type ('req, 'res) t = 'req -> 'res Fut.t
+type header = Meta.header
+
+type ('req, 'res) t = header list -> 'req -> (header list * 'res) Fut.t
 (** A basic request handler. *)

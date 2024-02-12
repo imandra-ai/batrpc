@@ -22,7 +22,7 @@ module Client = struct
   let tracing : t =
     {
       handle =
-        (fun rpc (h : _ Handler.t) req ->
+        (fun rpc (h : _ Handler.t) headers req ->
           let _sp =
             Tracing_.enter_span ~__FILE__ ~__LINE__ "rpc-handler"
               ~data:(fun () ->
@@ -32,7 +32,7 @@ module Client = struct
                 ])
           in
 
-          let fut = h req in
+          let fut = h headers req in
           Fut.on_result fut (fun _ -> Tracing_.exit_span _sp);
 
           fut);
@@ -40,6 +40,8 @@ module Client = struct
 end
 
 module Server = struct
+  type header = Meta.header
+
   type t = {
     handle:
       'req 'req_mode 'res 'res_mode.
