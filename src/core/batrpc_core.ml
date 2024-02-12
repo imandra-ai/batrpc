@@ -23,5 +23,6 @@ module Log_rpc = Common_.Log
 type handler = Server_state.handler
 
 let mk_handler = Server_state.mk_handler
+let mk_handler_full = Server_state.mk_handler_full
 let mk_server_stream_handler = Server_state.mk_server_stream_handler
 let mk_client_stream_handler = Server_state.mk_client_stream_handler
