@@ -20,6 +20,16 @@ val mk_handler :
   handler
 (** Make a simple request/reply handler *)
 
+val mk_handler_full :
+  ( 'req,
+    Service.Value_mode.unary,
+    'res,
+    Service.Value_mode.unary )
+  Service.Server.rpc ->
+  (header list -> 'req -> (header list * 'res) Fut.t) ->
+  handler
+(** Make a full request/reply handler, with headers *)
+
 val mk_client_stream_handler :
   ( 'req,
     Service.Value_mode.stream,

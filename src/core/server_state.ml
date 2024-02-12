@@ -3,13 +3,15 @@ open Server_handler
 
 type handler = Server_handler.t
 
+let mk_handler_full rpc f : handler = Handler { rpc; h = Unary f }
+
 let mk_handler rpc f : handler =
   let open Fut.Infix in
   let f_as_handler _headers req =
     let+ res = f req in
     [], res
   in
-  Handler { rpc; h = Unary f_as_handler }
+  mk_handler_full rpc f_as_handler
 
 let mk_client_stream_handler rpc ~init ~on_item ~on_close () : handler =
   let h = Client_stream_handler { init; on_item; on_close } in
