@@ -11,7 +11,7 @@ module Util_ = struct
   let enabled = Otel.Collector.has_backend
 
   let instrument_fut ?kind ?(attrs = []) ~trace_id ~parent_id name
-      (mk_fut : unit -> _ Fut.t) : _ Fut.t =
+      (mk_fut : Otel.Span_ctx.t option -> unit -> _ Fut.t) : _ Fut.t =
     if enabled () then (
       let trace_id =
         match trace_id with
@@ -38,11 +38,13 @@ module Util_ = struct
         Otel.Trace.emit [ span ]
       in
 
-      let fut = mk_fut () in
+      let sp_ctx = Otel.Span_ctx.make ~trace_id ~parent_id:span_id () in
+      (* start the future, giving it its own span ctx as argument *)
+      let fut = mk_fut (Some sp_ctx) () in
       Fut.on_result fut on_fut_result_;
       fut
     ) else
-      mk_fut ()
+      mk_fut None ()
 end
 
 let get_span_ctx headers =
@@ -75,7 +77,14 @@ module Server = struct
           Util_.instrument_fut
             ~attrs:[ "service", `String service_name ]
             ~kind:Span.Span_kind_server ~trace_id ~parent_id ("rpc." ^ rpc.name)
-            (fun () -> handler headers req));
+            (fun ctx () ->
+              (* add [ctx] to headers *)
+              let headers =
+                match ctx with
+                | None -> headers
+                | Some ctx -> header_span_ctx ctx :: headers
+              in
+              handler headers req));
     }
 
   let middlewares () : _ list = [ trace_ ]
