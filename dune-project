@@ -25,5 +25,6 @@
     (trace-tef :with-test))
   (depopts
     (mtime (>= 2.0))
+    (opentelemetry (>= 0.7))
     (trace (>= 0.6))))
     
