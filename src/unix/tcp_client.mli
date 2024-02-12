@@ -7,7 +7,7 @@ type t = Rpc_conn.t
 val connect :
   ?active:Switch.t ->
   ?buf_pool:Buf_pool.t ->
-  ?middlewares:Middleware.t list ->
+  ?middlewares:Middleware.Client.t list ->
   ?runner:Runner.t ->
   ?services:Server_state.handler Service.Server.t list ->
   timer:Timer.t ->
@@ -20,7 +20,7 @@ val close_without_joining : t -> unit
 val with_connect :
   ?active:Switch.t ->
   ?buf_pool:Buf_pool.t ->
-  ?middlewares:Middleware.t list ->
+  ?middlewares:Middleware.Client.t list ->
   ?runner:Runner.t ->
   ?services:Server_state.handler Service.Server.t list ->
   timer:Timer.t ->

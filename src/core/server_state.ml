@@ -22,7 +22,7 @@ type stream_handler =
       -> stream_handler
 
 type state = {
-  mutable middlewares: Middleware.t list;
+  mutable middlewares: Middleware.Server.t list;
   mutable services: handler Service.Server.t list;
   streams: stream_handler Int32_tbl.t;  (** Handlers for incoming streams *)
   meths: handler Str_tbl.t;
@@ -133,6 +133,10 @@ let send_stream_close ~buf_pool ~oc ~(meta : Meta.meta) () : unit =
   Framing.write_empty ~buf_pool oc meta ();
   oc#flush ()
 
+let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.Server.t) :
+    _ Handler.t =
+  m.handle rpc h
+
 let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
     unit =
   let@ _sp =
@@ -177,10 +181,16 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
 
     match find_meth self meth_name with
     | None -> Error.failf "method not found: %S." meth_name
-    | Some (Handler { h = Unary f; rpc }) ->
+    | Some (Handler { h = Unary initial_handler; rpc }) ->
       (* read request here, but process it in the background *)
       let req = Framing.read_body_req ~buf_pool ic ~meta rpc in
-      Runner.run_async runner (fun () -> compute_res_and_reply rpc f req)
+
+      let handler =
+        List.fold_left (apply_middleware rpc) initial_handler
+          (Lock.get self.st).middlewares
+      in
+
+      Runner.run_async runner (fun () -> compute_res_and_reply rpc handler req)
     | Some
         (Handler
           {

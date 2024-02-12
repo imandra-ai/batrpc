@@ -21,7 +21,7 @@ type in_flight =
 
 type state = {
   mutable counter: int;  (** to allocate message numbers *)
-  mutable middlewares: Middleware.t list;
+  mutable middlewares: Middleware.Client.t list;
   in_flight: in_flight Int32_tbl.t;
 }
 
@@ -146,9 +146,9 @@ let handle_timeout (self : t) id : unit =
         Fut.fulfill_idempotent promise (Error (Error.E err, bt)))
     entry
 
-let[@inline] apply_middleware (h : _ Handler.t) (m : Middleware.t) : _ Handler.t
-    =
-  m.handle h
+let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.Client.t) :
+    _ Handler.t =
+  m.handle rpc h
 
 let create ?(middlewares = []) () : t =
   {
@@ -195,9 +195,9 @@ let send_request_ ?buf_pool ~oc ~meta ~rpc req : unit =
   Framing.write_req ~enc oc rpc meta req;
   oc#flush ()
 
-let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~headers ~timeout_s () :
+let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~headers ~timeout_s rpc :
     _ Handler.t =
- fun rpc req : _ Fut.t ->
+ fun req : _ Fut.t ->
   (* TODO: can we just avoid that? *)
   let bt = Printexc.get_callstack 5 in
 
@@ -221,22 +221,16 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~headers ~timeout_s () :
 let default_timeout_s_ : float = 30.
 
 let call (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t) ?(headers = [])
-    ?(timeout_s = default_timeout_s_)
-    (rpc :
-      ( _,
-        Service.Value_mode.unary,
-        _,
-        Service.Value_mode.unary )
-      Pbrt_services.Client.rpc) req : _ Fut.t =
+    ?(timeout_s = default_timeout_s_) rpc req : _ Fut.t =
   let initial_handler =
-    mk_unary_handler self ?buf_pool ~timer ~oc ~headers ~timeout_s ()
+    mk_unary_handler self ?buf_pool ~timer ~oc ~headers ~timeout_s rpc
   in
   let handler =
-    List.fold_left apply_middleware initial_handler
+    List.fold_left (apply_middleware rpc) initial_handler
       (Lock.get self.st).middlewares
   in
 
-  handler rpc req
+  handler req
 
 let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
     ?(headers = []) ?timeout_s

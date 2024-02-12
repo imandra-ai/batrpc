@@ -7,7 +7,7 @@ type handler = Rpc_conn.handler
 
 let create :
     ?active:Switch.t ->
-    ?middlewares:Middleware.t list ->
+    ?middlewares:Middleware.Server.t list ->
     services:handler Service.Server.t list ->
     runner:Runner.t ->
     timer:Timer.t ->

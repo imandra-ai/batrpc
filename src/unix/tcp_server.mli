@@ -12,7 +12,7 @@ val create :
   ?on_new_client:(Rpc_conn.t -> Unix.sockaddr -> unit) ->
   ?config_socket:(Unix.file_descr -> unit) ->
   ?reuseaddr:bool ->
-  ?middlewares:Middleware.t list ->
+  ?middlewares:Middleware.Server.t list ->
   active:Switch.t ->
   runner:Runner.t ->
   timer:Timer.t ->
@@ -24,7 +24,7 @@ val create :
     @param config_socket custom function to set options on server socket
       before it's used, but after basic options and [reuseaddr] have been set. *)
 
-val add_middleware : t -> Middleware.t -> unit
+val add_middleware : t -> Middleware.Server.t -> unit
 val active : t -> Switch.t
 
 val run : t -> unit
