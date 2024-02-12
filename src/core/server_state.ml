@@ -25,7 +25,7 @@ type state = {
   mutable middlewares: Middleware.Server.t list;
   mutable services: handler Service.Server.t list;
   streams: stream_handler Int32_tbl.t;  (** Handlers for incoming streams *)
-  meths: handler Str_tbl.t;
+  meths: (string * handler) Str_tbl.t;
       (** Direct access to methods by their fully qualified names *)
 }
 
@@ -51,7 +51,7 @@ let add_service_st_ (self : state) (service : handler Service.Server.t) : unit =
 
   let add_handler (Handler { rpc; h = _ } as handler) =
     let full_name = Namespacing.assemble_meth_name ~prefix rpc.name in
-    Str_tbl.replace self.meths full_name handler
+    Str_tbl.replace self.meths full_name (service.service_name, handler)
   in
 
   self.services <- service :: self.services;
@@ -133,9 +133,9 @@ let send_stream_close ~buf_pool ~oc ~(meta : Meta.meta) () : unit =
   Framing.write_empty ~buf_pool oc meta ();
   oc#flush ()
 
-let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.Server.t) :
-    _ Handler.t =
-  m.handle rpc h
+let[@inline] apply_middleware ~service_name rpc (h : _ Handler.t)
+    (m : Middleware.Server.t) : _ Handler.t =
+  m.handle ~service_name rpc h
 
 let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
     unit =
@@ -181,22 +181,24 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
 
     match find_meth self meth_name with
     | None -> Error.failf "method not found: %S." meth_name
-    | Some (Handler { h = Unary initial_handler; rpc }) ->
+    | Some (service_name, Handler { h = Unary initial_handler; rpc }) ->
       (* read request here, but process it in the background *)
       let req = Framing.read_body_req ~buf_pool ic ~meta rpc in
 
       let handler =
-        List.fold_left (apply_middleware rpc) initial_handler
-          (Lock.get self.st).middlewares
+        List.fold_left
+          (apply_middleware ~service_name rpc)
+          initial_handler (Lock.get self.st).middlewares
       in
 
       Runner.run_async runner (fun () -> compute_res_and_reply rpc handler req)
     | Some
-        (Handler
-          {
-            rpc;
-            h = Client_stream (Client_stream_handler ({ init; _ } as handler));
-          }) ->
+        ( _,
+          Handler
+            {
+              rpc;
+              h = Client_stream (Client_stream_handler ({ init; _ } as handler));
+            } ) ->
       Framing.read_empty ~buf_pool ic ~meta;
 
       (* create stream bookkeeping data *)
@@ -207,7 +209,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
           (Str_client_stream { state; handler; rpc })
       in
       ()
-    | Some (Handler { rpc; h = Server_stream f }) ->
+    | Some (_, Handler { rpc; h = Server_stream f }) ->
       let req = Framing.read_body_req ~buf_pool ic ~meta rpc in
 
       let closed = Atomic.make false in
@@ -228,7 +230,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
 
       Runner.run_async runner (fun () ->
           compute_stream_response f ~push_stream req)
-    | Some (Handler { rpc = _; h = Bidirectional_stream _ }) ->
+    | Some (_, Handler { rpc = _; h = Bidirectional_stream _ }) ->
       (* FIXME: handle bidirectional streams *)
       Error.failf "Cannot handle method %S." meth_name
   in

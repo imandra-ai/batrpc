@@ -56,7 +56,7 @@ val create :
 val add_middleware : t -> Middleware.Server.t -> unit
 val add_service : t -> handler Service.Server.t -> unit
 val list_services : t -> handler Service.Server.t list
-val find_meth : t -> string -> handler option
+val find_meth : t -> string -> (string * handler) option
 
 val handle_request :
   t ->
