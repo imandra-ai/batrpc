@@ -103,7 +103,7 @@ let send_nothing_or_error ~buf_pool ~oc ~(meta : Meta.meta)
   match res with
   | Ok () -> ()
   | Error err ->
-    Log.err (fun k -> k "reply with error:@ %a" Error.pp err);
+    Log.err (fun k -> k "reply with error for id=%ld:@ %a" meta.id Error.pp err);
     send_error ~buf_pool ~oc ~meta err
 
 let send_response_or_error ~buf_pool ~oc ~(meta : Meta.meta) ~rpc
@@ -119,7 +119,7 @@ let send_response_or_error ~buf_pool ~oc ~(meta : Meta.meta) ~rpc
     Framing.write_res ~buf_pool oc rpc meta res;
     oc#flush ()
   | Error err ->
-    Log.err (fun k -> k "reply with error:@ %a" Error.pp err);
+    Log.err (fun k -> k "reply with error for id=%ld:@ %a" meta.id Error.pp err);
     send_error ~buf_pool ~oc ~meta err
 
 let send_stream_item ~buf_pool ~oc ~(meta : Meta.meta) ~rpc res : unit =
