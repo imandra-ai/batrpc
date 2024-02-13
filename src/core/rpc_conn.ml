@@ -45,6 +45,7 @@ let close_real_ ~join_bg self : unit =
       let@ () =
         with_logging_error_as_warning_ "could not send 'close' message"
       in
+      Log.debug (fun k -> k "send 'close' message");
       Framing.write_empty oc
         (Meta.make_meta ~id:0l ~body_size:0l ~kind:Meta.Close ~headers:[] ())
         ();
@@ -54,8 +55,13 @@ let close_real_ ~join_bg self : unit =
   in
   self.ic#close ();
 
+  let join_thread_ th =
+    let@ _sp = Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.rpc-conn.join" in
+    Thread.join th
+  in
+
   (* now stop worker *)
-  if join_bg then Option.iter Thread.join self.background_worker;
+  if join_bg then Option.iter join_thread_ self.background_worker;
   self.background_worker <- None;
 
   Fut.fulfill_idempotent self.on_close_promise @@ Ok ()
