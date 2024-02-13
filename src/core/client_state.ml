@@ -124,11 +124,15 @@ let handle_error (self : t) ~buf_pool ~(meta : Meta.meta) ~ic () : unit =
     remove_from_tbl_ self meta.id;
     let err = Framing.read_error ~buf_pool ic ~meta in
     let err = Error.mk @@ Error.Rpc_error err in
+    Log.err (fun k ->
+        k "client: received error for id %ld:@ %a" meta.id Error.pp err);
     Fut.fulfill_idempotent promise (Error (Error.E err, bt))
   | Some (IF_stream { bt; promise; _ }) ->
     remove_from_tbl_ self meta.id;
     let err = Framing.read_error ~buf_pool ic ~meta in
     let err = Error.mk @@ Error.Rpc_error err in
+    Log.err (fun k ->
+        k "client: received error for id %ld:@ %a" meta.id Error.pp err);
     Fut.fulfill_idempotent promise (Error (Error.E err, bt))
 
 let handle_timeout (self : t) id : unit =
@@ -139,10 +143,12 @@ let handle_timeout (self : t) id : unit =
       | IF_unary { promise; bt; _ } ->
         remove_from_tbl_ self id;
         let err = Error.mk Error.Timeout in
+        Log.err (fun k -> k "client: timeout for id %ld:" id);
         Fut.fulfill_idempotent promise (Error (Error.E err, bt))
       | IF_stream { promise; bt; _ } ->
         remove_from_tbl_ self id;
         let err = Error.mk Error.Timeout in
+        Log.err (fun k -> k "client: timeout for id %ld" id);
         Fut.fulfill_idempotent promise (Error (Error.E err, bt)))
     entry
 
