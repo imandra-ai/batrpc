@@ -76,11 +76,11 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
   Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
 
   let ic =
-    new Io.In.of_in_channel ~n_received:Net_stats.n_received
+    new Io.In.of_in_channel ~close_noerr:true ~n_received:Net_stats.n_received
     @@ Unix.in_channel_of_descr client_sock
   in
   let oc =
-    new Io.Out.of_out_channel ~n_sent:Net_stats.n_sent
+    new Io.Out.of_out_channel ~close_noerr:true ~n_sent:Net_stats.n_sent
     @@ Unix.out_channel_of_descr client_sock
   in
 
