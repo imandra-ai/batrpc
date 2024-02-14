@@ -8,8 +8,8 @@ val connect :
   ?active:Switch.t ->
   ?buf_pool:Buf_pool.t ->
   ?middlewares:Middleware.Client.t list ->
-  ?runner:Runner.t ->
   ?services:Server_state.handler Service.Server.t list ->
+  runner:Runner.t ->
   timer:Timer.t ->
   Unix.sockaddr ->
   t Error.result
@@ -21,8 +21,8 @@ val with_connect :
   ?active:Switch.t ->
   ?buf_pool:Buf_pool.t ->
   ?middlewares:Middleware.Client.t list ->
-  ?runner:Runner.t ->
   ?services:Server_state.handler Service.Server.t list ->
+  runner:Runner.t ->
   timer:Timer.t ->
   Unix.sockaddr ->
   (t -> 'a) ->

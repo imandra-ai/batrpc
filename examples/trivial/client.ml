@@ -10,8 +10,9 @@ let () =
   let timer = RPC.Simple_timer.create () in
 
   Printf.printf "connecting...\n%!";
+  let@ runner = Moonpool.Fifo_pool.with_ () in
   let client : Client.t =
-    RPC.Tcp_client.connect ~timer addr |> RPC.Error.unwrap
+    RPC.Tcp_client.connect ~timer ~runner addr |> RPC.Error.unwrap
   in
   let@ () = Fun.protect ~finally:(fun () -> Client.close_and_join client) in
 

@@ -2,8 +2,7 @@ open Util_
 
 type t = Rpc_conn.t
 
-let connect ?active ?buf_pool ?middlewares
-    ?(runner = Moonpool.Immediate_runner.runner) ?(services = []) ~timer
+let connect ?active ?buf_pool ?middlewares ?(services = []) ~runner ~timer
     (addr : Unix.sockaddr) : t Error.result =
   let@ () =
     Error.guardf (fun k ->
@@ -40,10 +39,10 @@ let connect ?active ?buf_pool ?middlewares
 let close_and_join = Rpc_conn.close_and_join
 let close_without_joining = Rpc_conn.close_without_joining
 
-let with_connect ?active ?buf_pool ?middlewares ?runner ?services ~timer addr f
+let with_connect ?active ?buf_pool ?middlewares ?services ~runner ~timer addr f
     =
   match
-    connect ?active ?buf_pool ?middlewares ?runner ?services ~timer addr
+    connect ?active ?buf_pool ?middlewares ?services ~runner ~timer addr
   with
   | Ok c ->
     let finally () = close_and_join c in
