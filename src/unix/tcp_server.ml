@@ -76,13 +76,15 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
   Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
 
   let ic =
-    new Io.In.of_fd
-      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received
-      client_sock
+    new Io.In.bufferized
+    @@ new Io.In.of_fd
+         ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received
+         client_sock
   in
   let oc =
-    new Io.Out.of_fd
-      ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.n_sent client_sock
+    new Io.Out.bufferized
+    @@ new Io.Out.of_fd
+         ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.n_sent client_sock
   in
 
   (* spawn a background thread, using the same [active] so as

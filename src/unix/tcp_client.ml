@@ -20,10 +20,14 @@ let connect ?active ?buf_pool ?middlewares
   Unix.connect sock addr;
 
   let ic =
-    new Io.In.of_fd
-      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received sock
+    new Io.In.bufferized
+    @@ new Io.In.of_fd
+         ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received sock
   in
-  let oc = new Io.Out.of_fd ~close_noerr:true ~n_sent:Net_stats.n_sent sock in
+  let oc =
+    new Io.Out.bufferized
+    @@ new Io.Out.of_fd ~close_noerr:true ~n_sent:Net_stats.n_sent sock
+  in
 
   let client_state = Client_state.create ?middlewares () in
   let conn : t =
