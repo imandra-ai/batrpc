@@ -32,6 +32,9 @@ val close_without_joining : t -> unit
 (** [close_without_joining rpc] closes the connection
     but immediately returns. *)
 
+val runner : t -> Moonpool.Runner.t
+val active : t -> Switch.t option
+
 val server_state : t -> Server_state.t
 (** State for the server end of this connection *)
 

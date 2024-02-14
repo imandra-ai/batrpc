@@ -25,6 +25,8 @@ let on_close self = self.on_close
 let client_state self = self.as_client
 let server_state self = self.as_server
 let add_service self s : unit = Server_state.add_service self.as_server s
+let runner self = self.runner
+let active self = self.active
 
 (** run [f()] and, if it fails, log a warning. *)
 let with_logging_error_as_warning_ what f =
