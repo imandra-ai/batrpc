@@ -1,13 +1,13 @@
 
 DUNE_OPTS?=
 build:
-	dune build @install $(DUNE_OPTS)
+	dune build @install $(DUNE_OPTS) --ignore-promoted-rules
 
 clean:
 	@dune clean
 
 test:
-	@dune runtest $(DUNE_OPTS)
+	@dune runtest $(DUNE_OPTS)  --ignore-promoted-rules
 
 doc:
 	@dune build $(DUNE_OPTS) @doc
@@ -17,7 +17,7 @@ build-dev:
 
 WATCH?= @check @runtest
 watch:
-	dune build $(DUNE_OPTS) -w $(WATCH)
+	dune build $(DUNE_OPTS) -w $(WATCH) --ignore-promoted-rules
 
 DUNE_OPTS_BENCH?=--profile=release
 
