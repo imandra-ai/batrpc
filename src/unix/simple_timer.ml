@@ -109,6 +109,9 @@ let run_every_s_ (self : state) period f : unit =
       (* schedule next iteration *)
       run_after_s_ self period loop
     | exception Stop_timer -> ()
+    | exception e ->
+      Printf.eprintf "exception in timer action: %s\n%!" (Printexc.to_string e);
+      run_after_s_ self period loop
   in
   run_after_s_ self period loop
 
