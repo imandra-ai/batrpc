@@ -23,7 +23,7 @@ type compression =
 
 type meta = {
   id : int32;
-  body_size : int32;
+  body_size : int32 option;
   kind : kind;
   meth : string option;
   headers : header list;
@@ -50,7 +50,7 @@ let rec default_compression () = (Compression_none:compression)
 
 let rec default_meta 
   ?id:((id:int32) = 0l)
-  ?body_size:((body_size:int32) = 0l)
+  ?body_size:((body_size:int32 option) = None)
   ?kind:((kind:kind) = default_kind ())
   ?meth:((meth:string option) = None)
   ?headers:((headers:header list) = [])
@@ -84,7 +84,7 @@ let default_header_mutable () : header_mutable = {
 
 type meta_mutable = {
   mutable id : int32;
-  mutable body_size : int32;
+  mutable body_size : int32 option;
   mutable kind : kind;
   mutable meth : string option;
   mutable headers : header list;
@@ -93,7 +93,7 @@ type meta_mutable = {
 
 let default_meta_mutable () : meta_mutable = {
   id = 0l;
-  body_size = 0l;
+  body_size = None;
   kind = default_kind ();
   meth = None;
   headers = [];
@@ -123,7 +123,7 @@ let rec make_header
 
 let rec make_meta 
   ~(id:int32)
-  ~(body_size:int32)
+  ?body_size:((body_size:int32 option) = None)
   ~(kind:kind)
   ?meth:((meth:string option) = None)
   ~(headers:header list)
@@ -176,7 +176,7 @@ let rec pp_compression fmt (v:compression) =
 let rec pp_meta fmt (v:meta) = 
   let pp_i fmt () =
     Pbrt.Pp.pp_record_field ~first:true "id" Pbrt.Pp.pp_int32 fmt v.id;
-    Pbrt.Pp.pp_record_field ~first:false "body_size" Pbrt.Pp.pp_int32 fmt v.body_size;
+    Pbrt.Pp.pp_record_field ~first:false "body_size" (Pbrt.Pp.pp_option Pbrt.Pp.pp_int32) fmt v.body_size;
     Pbrt.Pp.pp_record_field ~first:false "kind" pp_kind fmt v.kind;
     Pbrt.Pp.pp_record_field ~first:false "meth" (Pbrt.Pp.pp_option Pbrt.Pp.pp_string) fmt v.meth;
     Pbrt.Pp.pp_record_field ~first:false "headers" (Pbrt.Pp.pp_list pp_header) fmt v.headers;
@@ -228,8 +228,12 @@ let rec encode_pb_compression (v:compression) encoder =
 let rec encode_pb_meta (v:meta) encoder = 
   Pbrt.Encoder.int32_as_varint v.id encoder;
   Pbrt.Encoder.key 1 Pbrt.Varint encoder; 
-  Pbrt.Encoder.int32_as_varint v.body_size encoder;
-  Pbrt.Encoder.key 2 Pbrt.Varint encoder; 
+  begin match v.body_size with
+  | Some x -> 
+    Pbrt.Encoder.int32_as_varint x encoder;
+    Pbrt.Encoder.key 2 Pbrt.Varint encoder; 
+  | None -> ();
+  end;
   encode_pb_kind v.kind encoder;
   Pbrt.Encoder.key 3 Pbrt.Varint encoder; 
   begin match v.meth with
@@ -320,7 +324,7 @@ let rec decode_pb_meta d =
     | Some (1, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(meta), field(1)" pk
     | Some (2, Pbrt.Varint) -> begin
-      v.body_size <- Pbrt.Decoder.int32_as_varint d;
+      v.body_size <- Some (Pbrt.Decoder.int32_as_varint d);
     end
     | Some (2, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(meta), field(2)" pk
@@ -410,7 +414,10 @@ let rec encode_json_compression (v:compression) =
 let rec encode_json_meta (v:meta) = 
   let assoc = [] in 
   let assoc = ("id", Pbrt_yojson.make_int (Int32.to_int v.id)) :: assoc in
-  let assoc = ("bodySize", Pbrt_yojson.make_int (Int32.to_int v.body_size)) :: assoc in
+  let assoc = match v.body_size with
+    | None -> assoc
+    | Some v -> ("bodySize", Pbrt_yojson.make_int (Int32.to_int v)) :: assoc
+  in
   let assoc = ("kind", encode_json_kind v.kind) :: assoc in
   let assoc = match v.meth with
     | None -> assoc
@@ -487,7 +494,7 @@ let rec decode_json_meta d =
     | ("id", json_value) -> 
       v.id <- Pbrt_yojson.int32 json_value "meta" "id"
     | ("bodySize", json_value) -> 
-      v.body_size <- Pbrt_yojson.int32 json_value "meta" "body_size"
+      v.body_size <- Some (Pbrt_yojson.int32 json_value "meta" "body_size")
     | ("kind", json_value) -> 
       v.kind <- (decode_json_kind json_value)
     | ("meth", json_value) -> 

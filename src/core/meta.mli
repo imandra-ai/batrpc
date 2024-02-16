@@ -30,7 +30,7 @@ type compression =
 
 type meta = {
   id : int32;
-  body_size : int32;
+  body_size : int32 option;
   kind : kind;
   meth : string option;
   headers : header list;
@@ -61,7 +61,7 @@ val default_compression : unit -> compression
 
 val default_meta : 
   ?id:int32 ->
-  ?body_size:int32 ->
+  ?body_size:int32 option ->
   ?kind:kind ->
   ?meth:string option ->
   ?headers:header list ->
@@ -93,7 +93,7 @@ val make_header :
 
 val make_meta : 
   id:int32 ->
-  body_size:int32 ->
+  ?body_size:int32 option ->
   kind:kind ->
   ?meth:string option ->
   headers:header list ->
