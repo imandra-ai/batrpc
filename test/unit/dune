@@ -1,0 +1,4 @@
+
+(tests
+  (names t_io)
+  (libraries containers batrpc batrpc.core))

@@ -3,19 +3,19 @@
 type t = Rpc_conn.t
 
 let create :
-    ?client_state:Client_state.t ->
     ?buf_pool:Buf_pool.t ->
     ?active:Switch.t ->
+    ?encoding:Encoding.t ->
     timer:Timer.t ->
-    ic:Io.In.t ->
-    oc:Io.Out.t ->
+    ic:#Io.In.bufferized_t ->
+    oc:#Io.Out.t ->
     unit ->
     t =
- fun ?client_state ?buf_pool ?active ~timer ~ic ~oc () : t ->
+ fun ?buf_pool ?active ?(encoding = Encoding.Binary) ~timer ~ic ~oc () : t ->
   (* no need for a fancy executor, we won't be serving stuff to the other side *)
   let runner = Moonpool.Immediate_runner.runner in
-  Rpc_conn.create ?server_state:None ?client_state ?buf_pool ~runner ?active
-    ~timer ~ic ~oc ()
+  Encoding.write_to_oc oc encoding;
+  Rpc_conn.create ?buf_pool ~encoding ~runner ?active ~timer ~ic ~oc ()
 
 let close_and_join = Rpc_conn.close_and_join
 let close_without_joining = Rpc_conn.close_without_joining

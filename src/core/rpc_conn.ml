@@ -11,10 +11,13 @@ type t = {
   buf_pool: Buf_pool.t;
   runner: Runner.t;
   timer: Timer.t;
+  encoding: Encoding.t;
   as_server: Server_state.t;
   as_client: Client_state.t;
-  ic: Io.In.t;  (** Input stream. Only read by the background worker. *)
-  oc: Io.Out.t Lock.t;  (** Output stream, shared between many tasks *)
+  ic: Io.In.bufferized_t;
+      (** Input stream. Only read by the background worker. *)
+  oc: Io.Out.bufferized_t Lock.t;
+      (** Output stream, shared between many tasks *)
   on_close_promise: unit Fut.promise;
   on_close: unit Fut.t;
   mutable background_worker: Thread.t option;
@@ -48,7 +51,7 @@ let close_real_ ~join_bg self : unit =
         with_logging_error_as_warning_ "could not send 'close' message"
       in
       Log.debug (fun k -> k "send 'close' message");
-      Framing.write_empty oc
+      Framing.write_empty oc ~encoding:self.encoding
         (Meta.make_meta ~id:0l ~body_size:0l ~kind:Meta.Close ~headers:[] ())
         ();
       oc#flush ()
@@ -91,7 +94,9 @@ let background_worker (self : t) : unit =
   Tracing_.set_thread_name "rpc-conn.bg";
   let@ () = with_logging_error_as_warning_ "running background loop" in
   while Atomic.get self.is_open && Switch.is_on_or_absent self.active do
-    match Framing.read_meta self.ic ~buf_pool:self.buf_pool with
+    match
+      Framing.read_meta self.ic ~encoding:self.encoding ~buf_pool:self.buf_pool
+    with
     | exception End_of_file -> handle_close self
     | exception Sys_error msg ->
       Log.warn (fun k -> k "RPC conn failed to read message: sys error %s" msg);
@@ -106,26 +111,27 @@ let background_worker (self : t) : unit =
       | Close -> handle_close self
       | Response ->
         Client_state.handle_response self.as_client ~buf_pool:self.buf_pool
-          ~meta ~ic:self.ic ()
+          ~meta ~ic:self.ic ~encoding:self.encoding ()
       | Error ->
         Client_state.handle_error self.as_client ~buf_pool:self.buf_pool ~meta
-          ~ic:self.ic ()
+          ~ic:self.ic ~encoding:self.encoding ()
       | Heartbeat -> ()
       | Request ->
         Server_state.handle_request self.as_server ~runner:self.runner
-          ~buf_pool:self.buf_pool ~meta ~ic:self.ic ~oc:self.oc ()
+          ~buf_pool:self.buf_pool ~meta ~encoding:self.encoding ~ic:self.ic
+          ~oc:self.oc ()
       | Client_stream_item ->
         Server_state.handle_stream_item self.as_server ~buf_pool:self.buf_pool
-          ~meta ~ic:self.ic ~oc:self.oc ()
+          ~meta ~ic:self.ic ~oc:self.oc ~encoding:self.encoding ()
       | Client_stream_close ->
         Server_state.handle_stream_close self.as_server ~buf_pool:self.buf_pool
-          ~meta ~ic:self.ic ~oc:self.oc ()
+          ~meta ~ic:self.ic ~oc:self.oc ~encoding:self.encoding ()
       | Server_stream_item ->
         Client_state.handle_stream_item self.as_client ~buf_pool:self.buf_pool
-          ~meta ~ic:self.ic ()
+          ~meta ~ic:self.ic ~encoding:self.encoding ()
       | Server_stream_close ->
         Client_state.handle_stream_close self.as_client ~buf_pool:self.buf_pool
-          ~meta ~ic:self.ic ()
+          ~meta ~ic:self.ic ~encoding:self.encoding ()
       | Invalid ->
         Log.err (fun k ->
             k "client: unexpected message of kind=%a" Meta.pp_kind meta.kind);
@@ -134,14 +140,25 @@ let background_worker (self : t) : unit =
   done;
   Log.debug (fun k -> k "rpc-conn bg: exiting")
 
-let create ?(server_state = Server_state.create ~services:[] ())
-    ?(client_state = Client_state.create ()) ?(buf_pool = Buf_pool.create ())
-    ?active ~runner ~timer ~ic ~oc () : t =
+let create ?(buf_pool = Buf_pool.create ()) ?active ?server_state ~encoding
+    ~runner ~timer ~(ic : #Io.In.bufferized_t) ~(oc : #Io.Out.bufferized_t) () :
+    t =
+  let server_state =
+    match server_state with
+    | None -> Server_state.create ~services:[] ()
+    | Some st -> st
+  in
+  let client_state = Client_state.create () in
+
+  let ic = (ic :> Io.In.bufferized_t) in
+  let oc = (oc :> Io.Out.bufferized_t) in
+
   let on_close, on_close_promise = Fut.make () in
   let self =
     {
       as_server = server_state;
       as_client = client_state;
+      encoding;
       active;
       runner;
       is_open = Atomic.make true;
@@ -173,17 +190,18 @@ let call (self : t) ?headers ?timeout_s (rpc : _ Pbrt_services.Client.rpc) req :
     _ Fut.t =
   if not (Atomic.get self.is_open) then raise Closed;
   Client_state.call self.as_client ~timer:self.timer ?headers ?timeout_s
-    ~oc:self.oc rpc req
+    ~oc:self.oc ~encoding:self.encoding rpc req
 
 let call_client_stream (self : t) ?headers ?timeout_s
     (rpc : _ Pbrt_services.Client.rpc) : _ Push_stream.t * _ Fut.t =
   if not (Atomic.get self.is_open) then raise Closed;
   Client_state.call_client_stream self.as_client ~buf_pool:self.buf_pool
-    ~timer:self.timer ?headers ?timeout_s ~oc:self.oc rpc
+    ~timer:self.timer ?headers ?timeout_s ~oc:self.oc ~encoding:self.encoding
+    rpc
 
 let call_server_stream (self : t) ?headers ?timeout_s
     (rpc : _ Pbrt_services.Client.rpc) ~init ~on_item ~on_close req : _ Fut.t =
   if not (Atomic.get self.is_open) then raise Closed;
   Client_state.call_server_stream self.as_client ~buf_pool:self.buf_pool
-    ~timer:self.timer ?headers ?timeout_s ~oc:self.oc rpc ~init ~on_item
-    ~on_close req
+    ~timer:self.timer ?headers ?timeout_s ~oc:self.oc ~encoding:self.encoding
+    rpc ~init ~on_item ~on_close req

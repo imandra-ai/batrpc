@@ -29,6 +29,20 @@ module In = struct
       end
   end
 
+  class of_str (str : string) : t =
+    let off = ref 0 in
+    object
+      method close () = ()
+
+      method input bs i len =
+        let n = min len (String.length str - !off) in
+        Bytes.blit_string str !off bs i n;
+        off := !off + n;
+        n
+
+      inherit base
+    end
+
   class of_fd ?(shutdown = false) ?n_received ?(close_noerr = false)
     (fd : Unix.file_descr) : t =
     object
@@ -49,10 +63,18 @@ module In = struct
           Unix.close fd
     end
 
-  class bufferized ?(buf = Bytes.create default_buf_size) (ic : #t) : t =
+  class type bufferized_t =
+    object
+      inherit t
+      method read_line : unit -> string option
+    end
+
+  class bufferized ?(buf = Bytes.create default_buf_size) (ic : #t) :
+    bufferized_t =
     let buf_off = ref 0 in
     let buf_len = ref 0 in
     let eof = ref false in
+    let buffer = Buffer.create 32 in
 
     let refill_ () =
       if not !eof then (
@@ -72,7 +94,39 @@ module In = struct
 
       inherit base
       method close () = ic#close ()
+
+      method read_line () =
+        Buffer.clear buffer;
+        let continue = ref true in
+        while !continue && not !eof do
+          match
+            String.index_from_opt (Bytes.unsafe_to_string buf) !buf_off '\n'
+          with
+          | Some i when i - !buf_off < !buf_len ->
+            let n = i - !buf_off in
+            Buffer.add_subbytes buffer buf !buf_off n;
+            buf_off := !buf_off + n + 1;
+            buf_len := !buf_len - n - 1;
+            continue := false
+          | _ ->
+            Buffer.add_subbytes buffer buf !buf_off !buf_len;
+            buf_off := 0;
+            buf_len := 0;
+            refill_ ()
+        done;
+        if !eof && Buffer.length buffer = 0 then
+          None
+        else
+          Some (Buffer.contents buffer)
     end
+
+  let read_lines (self : #bufferized_t) : string list =
+    let rec loop acc =
+      match self#read_line () with
+      | None -> List.rev acc
+      | Some line -> loop (line :: acc)
+    in
+    loop []
 end
 
 module Out = struct
@@ -83,6 +137,9 @@ module Out = struct
       method flush : unit -> unit
       method close : unit -> unit
     end
+
+  let output_string (self : #t) str : unit =
+    self#output (Bytes.unsafe_of_string str) 0 (String.length str)
 
   class of_fd ?(shutdown = false) ?n_sent ?(close_noerr = false)
     (fd : Unix.file_descr) : t =
@@ -110,7 +167,15 @@ module Out = struct
           Unix.close fd
     end
 
-  class bufferized ?(buf = Bytes.create default_buf_size) (oc : #t) : t =
+  class type bufferized_t =
+    object
+      inherit t
+      method output_char : char -> unit
+      method output_line : string -> unit
+    end
+
+  class bufferized ?(buf = Bytes.create default_buf_size) (oc : #t) :
+    bufferized_t =
     let off = ref 0 in
     let flush_ () =
       if !off > 0 then (
@@ -118,34 +183,52 @@ module Out = struct
         off := 0
       )
     in
-    let[@inline] maybe_flush_ () = if !off = Bytes.length buf then flush_ () in
+    let[@inline] flush_if_full_ () =
+      if !off = Bytes.length buf then flush_ ()
+    in
 
-    object
+    object (self)
       method flush () = flush_ ()
 
       method output bs i len : unit =
         let i = ref i in
         let len = ref len in
         while !len > 0 do
-          maybe_flush_ ();
+          flush_if_full_ ();
           let n = min !len (Bytes.length buf - !off) in
           assert (n > 0);
 
-          Bytes.blit bs !i buf !off !len;
+          Bytes.blit bs !i buf !off n;
           i := !i + n;
           len := !len - n;
           off := !off + n
         done;
-        maybe_flush_ ()
+        flush_if_full_ ()
 
       method close () =
         flush_ ();
         oc#close ()
+
+      method output_char c : unit =
+        flush_if_full_ ();
+        Bytes.set buf !off c;
+        incr off;
+        flush_if_full_ ()
+
+      method output_line str : unit =
+        output_string self str;
+        self#output_char '\n'
     end
 
-  class of_buffer (buf : Buffer.t) : t =
+  class of_buffer (buf : Buffer.t) : bufferized_t =
     object
       method output bs i len = Buffer.add_subbytes buf bs i len
+      method output_char c = Buffer.add_char buf c
+
+      method output_line s =
+        Buffer.add_string buf s;
+        Buffer.add_char buf '\n'
+
       method flush () = ()
       method close () = ()
     end
