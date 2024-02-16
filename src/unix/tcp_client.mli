@@ -9,6 +9,7 @@ val connect :
   ?buf_pool:Buf_pool.t ->
   ?middlewares:Middleware.Client.t list ->
   ?services:Server_state.handler Service.Server.t list ->
+  ?encoding:Encoding.t ->
   runner:Runner.t ->
   timer:Timer.t ->
   Unix.sockaddr ->
@@ -22,6 +23,7 @@ val with_connect :
   ?buf_pool:Buf_pool.t ->
   ?middlewares:Middleware.Client.t list ->
   ?services:Server_state.handler Service.Server.t list ->
+  ?encoding:Encoding.t ->
   runner:Runner.t ->
   timer:Timer.t ->
   Unix.sockaddr ->

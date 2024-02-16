@@ -215,8 +215,9 @@ let t_with_pipe () =
 
   (* thread for server *)
   let server : RPC.Server_for_client.t =
+    let encoding = RPC.Encoding.read_from_ic ic_server in
     RPC.Server_for_client.create (* ~active *)
-      ~runner ~timer ~services ~ic:ic_server ~oc:oc_server ()
+      ~runner ~timer ~services ~encoding ~ic:ic_server ~oc:oc_server ()
   in
   let@ () =
     Fun.protect ~finally:(fun () -> RPC.Server_for_client.close server)

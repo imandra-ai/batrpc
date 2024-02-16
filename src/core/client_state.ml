@@ -23,6 +23,7 @@ type state = {
   mutable counter: int;  (** to allocate message numbers *)
   mutable middlewares: Middleware.Client.t list;
   in_flight: in_flight Int32_tbl.t;
+  encoding: Encoding.t;
 }
 
 type t = { st: state Lock.t } [@@unboxed]
@@ -156,10 +157,11 @@ let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.Client.t) :
     _ Handler.t =
   m.handle rpc h
 
-let create ?(middlewares = []) () : t =
+let create ?(middlewares = []) ~encoding () : t =
   {
     st =
-      Lock.create { counter = 0; middlewares; in_flight = Int32_tbl.create 8 };
+      Lock.create
+        { counter = 0; middlewares; encoding; in_flight = Int32_tbl.create 8 };
   }
 
 (** Call [f] with a protobuf encoder *)
@@ -226,7 +228,7 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~timeout_s rpc :
 
 let default_timeout_s_ : float = 30.
 
-let call (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t) ?(headers = [])
+let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t) ?(headers = [])
     ?(timeout_s = default_timeout_s_) rpc req : _ Fut.t =
   let initial_handler =
     mk_unary_handler self ?buf_pool ~timer ~oc ~timeout_s rpc
@@ -238,7 +240,7 @@ let call (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t) ?(headers = [])
 
   handler headers req |> Fut.map ~f:snd
 
-let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
+let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
     ?(headers = []) ?timeout_s
     (rpc :
       ( 'req,
@@ -314,7 +316,7 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
   let fut = fut |> Fut.map ~f:snd in
   stream, fut
 
-let call_server_stream (self : t) ?buf_pool ~timer ~(oc : Io.Out.t Lock.t)
+let call_server_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
     ?(headers = []) ?(timeout_s = default_timeout_s_)
     (rpc :
       ( 'req,

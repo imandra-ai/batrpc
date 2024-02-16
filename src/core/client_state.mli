@@ -5,28 +5,49 @@ type t
 (** Client-side state. This tracks the state of
     in-flight requests and active streams. *)
 
-val create : ?middlewares:Middleware.Client.t list -> unit -> t
+val create :
+  ?middlewares:Middleware.Client.t list -> encoding:Encoding.t -> unit -> t
 (** New client state *)
 
 val add_middleware : t -> Middleware.Client.t -> unit
 
 val handle_response :
-  t -> buf_pool:Buf_pool.t -> meta:Meta.meta -> ic:Io.In.t -> unit -> unit
+  t ->
+  buf_pool:Buf_pool.t ->
+  meta:Meta.meta ->
+  ic:#Io.In.bufferized_t ->
+  unit ->
+  unit
 
 val handle_error :
-  t -> buf_pool:Buf_pool.t -> meta:Meta.meta -> ic:Io.In.t -> unit -> unit
+  t ->
+  buf_pool:Buf_pool.t ->
+  meta:Meta.meta ->
+  ic:#Io.In.bufferized_t ->
+  unit ->
+  unit
 
 val handle_stream_item :
-  t -> buf_pool:Buf_pool.t -> meta:Meta.meta -> ic:Io.In.t -> unit -> unit
+  t ->
+  buf_pool:Buf_pool.t ->
+  meta:Meta.meta ->
+  ic:#Io.In.bufferized_t ->
+  unit ->
+  unit
 
 val handle_stream_close :
-  t -> buf_pool:Buf_pool.t -> meta:Meta.meta -> ic:Io.In.t -> unit -> unit
+  t ->
+  buf_pool:Buf_pool.t ->
+  meta:Meta.meta ->
+  ic:#Io.In.bufferized_t ->
+  unit ->
+  unit
 
 val call :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:Io.Out.t Lock.t ->
+  oc:#Io.Out.t Lock.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,
@@ -42,7 +63,7 @@ val call_client_stream :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:Io.Out.t Lock.t ->
+  oc:#Io.Out.t Lock.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,
@@ -61,7 +82,7 @@ val call_server_stream :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:Io.Out.t Lock.t ->
+  oc:#Io.Out.t Lock.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,

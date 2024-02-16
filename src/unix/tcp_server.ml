@@ -87,11 +87,23 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
          ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.n_sent client_sock
   in
 
+  let magic_number =
+    let bs4 = Bytes.create 4 in
+    ic#really_input bs4 0 4;
+    Bytes.get_int32_le bs4 0
+  in
+
+  let encoding =
+    match Encoding.of_int32_le magic_number with
+    | Some e -> e
+    | None -> Error.failf "Rpc_conn: invalid magic number %ld" magic_number
+  in
+
   (* spawn a background thread, using the same [active] so as
      to propagate cancellation to it *)
   let rpc_conn : Rpc_conn.t =
-    Rpc_conn.create ~server_state:self.st ~active:self.active
-      ~buf_pool:self.buf_pool ~runner:self.runner ~timer:self.timer ~ic ~oc ()
+    Rpc_conn.create ~active:self.active ~buf_pool:self.buf_pool
+      ~runner:self.runner ~encoding ~timer:self.timer ~ic ~oc ()
   in
 
   Fut.on_result (Rpc_conn.on_close rpc_conn) (fun _ ->

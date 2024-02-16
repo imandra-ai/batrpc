@@ -3,7 +3,7 @@ open Common_
 (** Size of body above which we apply zlib compression. *)
 let compression_threshold = 2 * 1024
 
-let read_meta ~buf_pool (ic : Io.In.t) : Meta.meta option =
+let read_meta ~buf_pool (ic : #Io.In.t) : Meta.meta option =
   let size_buf = Bytes.create 2 in
   match ic#really_input size_buf 0 2 with
   | exception End_of_file -> None
@@ -39,7 +39,7 @@ let read_with_dec_ ~buf_pool ic ~(meta : Meta.meta) ~what ~f_dec =
     let ctx = Error.(mk @@ Deser_error err) in
     Error.(failf ~ctx "Reading body of %s failed" what)
 
-let read_body_req ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta)
+let read_body_req ~buf_pool (ic : #Io.In.t) ~(meta : Meta.meta)
     (rpc : _ Service.Server.rpc) =
   let@ () =
     Error.guardf (fun k ->
@@ -48,7 +48,7 @@ let read_body_req ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta)
   assert (meta.kind = Meta.Request || meta.kind = Meta.Client_stream_item);
   read_with_dec_ ic ~buf_pool ~meta ~what:"request" ~f_dec:rpc.decode_pb_req
 
-let read_body_res ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta)
+let read_body_res ~buf_pool (ic : #Io.In.t) ~(meta : Meta.meta)
     (rpc : _ Service.Client.rpc) =
   let@ () =
     Error.guardf (fun k ->
@@ -57,7 +57,7 @@ let read_body_res ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta)
   assert (meta.kind = Meta.Response || meta.kind = Meta.Server_stream_item);
   read_with_dec_ ic ~buf_pool ~meta ~what:"response" ~f_dec:rpc.decode_pb_res
 
-let read_error ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta) : Meta.error =
+let read_error ~buf_pool (ic : #Io.In.t) ~(meta : Meta.meta) : Meta.error =
   let@ () =
     Error.guardf (fun k -> k "Batrpc: reading the error for call %ld" meta.id)
   in
@@ -70,7 +70,7 @@ let read_and_discard ~buf_pool ic ~(meta : Meta.meta) : unit =
   ic#really_input buf 0 body_size;
   ()
 
-let read_empty ~buf_pool (ic : Io.In.t) ~(meta : Meta.meta) =
+let read_empty ~buf_pool (ic : #Io.In.t) ~(meta : Meta.meta) =
   let@ () = Error.guards "Batrpc: reading an Empty message" in
   read_with_dec_ ic ~buf_pool ~meta ~what:"empty" ~f_dec:Meta.decode_pb_empty
 
@@ -86,7 +86,7 @@ let with_pbrt_encoder_ ?buf_pool ?enc () f =
     f enc
   | None, None -> f (Pbrt.Encoder.create ())
 
-let write_meta_ ~enc (oc : Io.Out.t) (meta : Meta.meta) : unit =
+let write_meta_ ~enc (oc : #Io.Out.t) (meta : Meta.meta) : unit =
   Pbrt.Encoder.clear enc;
   Meta.encode_pb_meta meta enc;
   (* NOTE: sadly we can't just access the inner buffer, so we need a copy here. *)
@@ -112,7 +112,7 @@ let write_meta_ ~enc (oc : Io.Out.t) (meta : Meta.meta) : unit =
   (* write meta *)
   oc#output buf 0 (Bytes.length buf)
 
-let write_with_ ?buf_pool ?enc (oc : Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
+let write_with_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
     unit =
   let@ enc = with_pbrt_encoder_ ?buf_pool ?enc () in
 
@@ -139,16 +139,16 @@ let write_with_ ?buf_pool ?enc (oc : Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
   write_meta_ ~enc oc meta;
   oc#output body_str 0 (Bytes.length body_str)
 
-let write_req ?buf_pool ?enc (oc : Io.Out.t) (rpc : _ Service.Client.rpc) meta
+let write_req ?buf_pool ?enc (oc : #Io.Out.t) (rpc : _ Service.Client.rpc) meta
     req : unit =
   write_with_ ?buf_pool ?enc oc ~meta ~f_enc:rpc.encode_pb_req req
 
-let write_error ?buf_pool ?enc (oc : Io.Out.t) meta err : unit =
+let write_error ?buf_pool ?enc (oc : #Io.Out.t) meta err : unit =
   write_with_ ?buf_pool ?enc oc ~meta ~f_enc:Meta.encode_pb_error err
 
-let write_empty ?buf_pool ?enc (oc : Io.Out.t) meta () : unit =
+let write_empty ?buf_pool ?enc (oc : #Io.Out.t) meta () : unit =
   write_with_ ?buf_pool ?enc oc ~meta ~f_enc:Meta.encode_pb_empty ()
 
-let write_res ?buf_pool ?enc (oc : Io.Out.t) (rpc : _ Service.Server.rpc) meta
+let write_res ?buf_pool ?enc (oc : #Io.Out.t) (rpc : _ Service.Server.rpc) meta
     res : unit =
   write_with_ ?buf_pool ?enc oc ~meta ~f_enc:rpc.encode_pb_res res

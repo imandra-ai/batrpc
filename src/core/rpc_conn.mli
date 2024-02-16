@@ -11,14 +11,13 @@ open Common_
 type t
 
 val create :
-  ?server_state:Server_state.t ->
-  ?client_state:Client_state.t ->
   ?buf_pool:Buf_pool.t ->
   ?active:Switch.t ->
+  encoding:Encoding.t ->
   runner:Runner.t ->
   timer:Timer.t ->
-  ic:Io.In.t ->
-  oc:Io.Out.t ->
+  ic:#Io.In.bufferized_t ->
+  oc:#Io.Out.t ->
   unit ->
   t
 
