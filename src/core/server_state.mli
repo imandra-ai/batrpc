@@ -74,7 +74,8 @@ val handle_request :
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.t Lock.t ->
+  oc:#Io.Out.bufferized_t Lock.t ->
+  encoding:Encoding.t ->
   unit ->
   unit
 (** We have read, from [ic], the metadata for a new message
@@ -88,7 +89,8 @@ val handle_stream_item :
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.t Lock.t ->
+  oc:#Io.Out.bufferized_t Lock.t ->
+  encoding:Encoding.t ->
   unit ->
   unit
 (** Handle stream close, in the current thread. We must preserve the order of
@@ -99,7 +101,8 @@ val handle_stream_close :
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.t Lock.t ->
+  oc:#Io.Out.bufferized_t Lock.t ->
+  encoding:Encoding.t ->
   unit ->
   unit
 (** Handle stream close, in the current thread. We must preserve the order of

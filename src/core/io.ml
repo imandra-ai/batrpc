@@ -138,6 +138,9 @@ module Out = struct
       method close : unit -> unit
     end
 
+  let output_string (self : #t) str : unit =
+    self#output (Bytes.unsafe_of_string str) 0 (String.length str)
+
   class of_fd ?(shutdown = false) ?n_sent ?(close_noerr = false)
     (fd : Unix.file_descr) : t =
     object
@@ -164,7 +167,15 @@ module Out = struct
           Unix.close fd
     end
 
-  class bufferized ?(buf = Bytes.create default_buf_size) (oc : #t) : t =
+  class type bufferized_t =
+    object
+      inherit t
+      method output_char : char -> unit
+      method output_line : string -> unit
+    end
+
+  class bufferized ?(buf = Bytes.create default_buf_size) (oc : #t) :
+    bufferized_t =
     let off = ref 0 in
     let flush_ () =
       if !off > 0 then (
@@ -172,34 +183,52 @@ module Out = struct
         off := 0
       )
     in
-    let[@inline] maybe_flush_ () = if !off = Bytes.length buf then flush_ () in
+    let[@inline] flush_if_full_ () =
+      if !off = Bytes.length buf then flush_ ()
+    in
 
-    object
+    object (self)
       method flush () = flush_ ()
 
       method output bs i len : unit =
         let i = ref i in
         let len = ref len in
         while !len > 0 do
-          maybe_flush_ ();
+          flush_if_full_ ();
           let n = min !len (Bytes.length buf - !off) in
           assert (n > 0);
 
-          Bytes.blit bs !i buf !off !len;
+          Bytes.blit bs !i buf !off n;
           i := !i + n;
           len := !len - n;
           off := !off + n
         done;
-        maybe_flush_ ()
+        flush_if_full_ ()
 
       method close () =
         flush_ ();
         oc#close ()
+
+      method output_char c : unit =
+        flush_if_full_ ();
+        Bytes.set buf !off c;
+        incr off;
+        flush_if_full_ ()
+
+      method output_line str : unit =
+        output_string self str;
+        self#output_char '\n'
     end
 
-  class of_buffer (buf : Buffer.t) : t =
+  class of_buffer (buf : Buffer.t) : bufferized_t =
     object
       method output bs i len = Buffer.add_subbytes buf bs i len
+      method output_char c = Buffer.add_char buf c
+
+      method output_line s =
+        Buffer.add_string buf s;
+        Buffer.add_char buf '\n'
+
       method flush () = ()
       method close () = ()
     end

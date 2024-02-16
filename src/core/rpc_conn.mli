@@ -13,11 +13,12 @@ type t
 val create :
   ?buf_pool:Buf_pool.t ->
   ?active:Switch.t ->
+  ?server_state:Server_state.t ->
   encoding:Encoding.t ->
   runner:Runner.t ->
   timer:Timer.t ->
   ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.t ->
+  oc:#Io.Out.bufferized_t ->
   unit ->
   t
 

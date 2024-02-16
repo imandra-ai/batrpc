@@ -128,11 +128,14 @@ let run_msg_test ~client () =
   let count = (Fut.wait_block_exn count_fut).count |> Int32.to_int in
   assert (count = n)
 
-let run_stress_test ~client () : unit =
-  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "run-stress-test" in
+let run_stress_test ~client ~n () : unit =
+  let@ _sp =
+    Trace.with_span ~__FILE__ ~__LINE__ "run-stress-test" ~data:(fun () ->
+        [ "n", `Int n ])
+  in
 
   let p = Trivial.make_pair ~x:"a" ~y:"b" ~artificial_delay_s:None () in
-  for _i = 1 to 1_000 do
+  for _i = 1 to n do
     let batch_size = 50 in
     let@ _sp =
       Trace.with_span ~__FILE__ ~__LINE__ "run.batch" ~data:(fun () ->
@@ -188,13 +191,13 @@ let run_server_stream_test ~client () : unit =
   let l = Fut.wait_block fut in
   Result.iter_error
     (fun (exn, _) ->
-      Fmt.printf "stream test failed with %s@." @@ Printexc.to_string exn)
+      Fmt.printf "stream test failed with: %s@." @@ Printexc.to_string exn)
     l;
 
   assert (l = Ok [ 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10 ]);
   ()
 
-let t_with_pipe () =
+let t_with_pipe ~encoding () =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main.pipe" in
 
   let@ ic_client, oc_server = RPC.Util_pipe.with_pipe ~close_noerr:true () in
@@ -204,7 +207,7 @@ let t_with_pipe () =
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let client : Client.t =
-    Client.create ~active ~timer ~ic:ic_client ~oc:oc_client ()
+    Client.create ~active ~timer ~encoding ~ic:ic_client ~oc:oc_client ()
   in
   let@ () =
     Fun.protect ~finally:(fun () ->
@@ -236,7 +239,7 @@ let log_net_stats () =
   Trace.counter_int "net.sent" (RPC.Net_stats.get_n_sent ());
   Trace.counter_int "net.received" (RPC.Net_stats.get_n_received ())
 
-let t_tcp () =
+let t_tcp ~encoding ~stress_n () =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main.tcp" in
 
   let active = RPC.Simple_switch.create () in
@@ -271,7 +274,8 @@ let t_tcp () =
 
   let with_client f =
     let client : Client.t =
-      RPC.Tcp_client.connect ~active ~runner ~timer addr |> RPC.Error.unwrap
+      RPC.Tcp_client.connect ~encoding ~active ~runner ~timer addr
+      |> RPC.Error.unwrap
     in
     let@ () =
       Fun.protect ~finally:(fun () ->
@@ -311,7 +315,7 @@ let t_tcp () =
         Trace.set_thread_name "stress-test-1";
         let@ () = with_switch_off_if_fail in
         let@ client = with_client in
-        run_stress_test ~client ())
+        run_stress_test ~client ~n:stress_n ())
       ()
   in
   let t_stress2 =
@@ -320,7 +324,7 @@ let t_tcp () =
         Trace.set_thread_name "stress-test-2";
         let@ () = with_switch_off_if_fail in
         let@ client = with_client in
-        run_stress_test ~client ())
+        run_stress_test ~client ~n:stress_n ())
       ()
   in
 
@@ -337,8 +341,13 @@ let () =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main" in
 
   try
-    t_with_pipe ();
-    t_tcp ();
+    (let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.binary" in
+     t_with_pipe ~encoding:RPC.Encoding.Binary ();
+     t_tcp ~encoding:RPC.Encoding.Binary ~stress_n:1000 ());
+
+    (let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.json" in
+     t_with_pipe ~encoding:RPC.Encoding.Json ();
+     t_tcp ~encoding:RPC.Encoding.Json ~stress_n:100 ());
     Trace.message "end main"
   with RPC.Error.E err ->
     Fmt.printf "error: %a@." RPC.Error.pp err;

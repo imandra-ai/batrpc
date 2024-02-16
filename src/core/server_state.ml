@@ -87,7 +87,7 @@ let create ?(middlewares = []) ~services () : t =
   { st = Lock.create st }
 
 (** write an error response, atomically *)
-let send_error ~buf_pool ~(meta : Meta.meta) ~oc err : unit =
+let send_error ~buf_pool ~(meta : Meta.meta) ~oc ~encoding err : unit =
   let msg = Error.show err in
   let err = Meta.make_error ~msg () in
   let meta =
@@ -95,18 +95,18 @@ let send_error ~buf_pool ~(meta : Meta.meta) ~oc err : unit =
   in
 
   let@ oc = Lock.with_lock oc in
-  Framing.write_error ~buf_pool oc meta err;
+  Framing.write_error ~buf_pool ~encoding oc meta err;
   oc#flush ()
 
-let send_nothing_or_error ~buf_pool ~oc ~(meta : Meta.meta)
+let send_nothing_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta)
     (res : unit Error.result) : unit =
   match res with
   | Ok () -> ()
   | Error err ->
     Log.err (fun k -> k "reply with error for id=%ld:@ %a" meta.id Error.pp err);
-    send_error ~buf_pool ~oc ~meta err
+    send_error ~buf_pool ~oc ~encoding ~meta err
 
-let send_response_or_error ~buf_pool ~oc ~(meta : Meta.meta) ~rpc
+let send_response_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc
     ?(headers = []) (res : _ Error.result) : unit =
   match res with
   | Ok res ->
@@ -116,38 +116,39 @@ let send_response_or_error ~buf_pool ~oc ~(meta : Meta.meta) ~rpc
 
     (* send response, atomically *)
     let@ oc = Lock.with_lock oc in
-    Framing.write_res ~buf_pool oc rpc meta res;
+    Framing.write_res ~buf_pool ~encoding oc rpc meta res;
     oc#flush ()
   | Error err ->
     Log.err (fun k -> k "reply with error for id=%ld:@ %a" meta.id Error.pp err);
-    send_error ~buf_pool ~oc ~meta err
+    send_error ~buf_pool ~oc ~encoding ~meta err
 
-let send_stream_item ~buf_pool ~oc ~(meta : Meta.meta) ~rpc res : unit =
+let send_stream_item ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc res : unit
+    =
   let meta =
     Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_item ~body_size:0l
       ~headers:[] ()
   in
 
   let@ oc = Lock.with_lock oc in
-  Framing.write_res ~buf_pool oc rpc meta res;
+  Framing.write_res ~buf_pool oc ~encoding rpc meta res;
   oc#flush ()
 
-let send_stream_close ~buf_pool ~oc ~(meta : Meta.meta) () : unit =
+let send_stream_close ~buf_pool ~oc ~encoding ~(meta : Meta.meta) () : unit =
   let meta =
     Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_close ~body_size:0l
       ~headers:[] ()
   in
 
   let@ oc = Lock.with_lock oc in
-  Framing.write_empty ~buf_pool oc meta ();
+  Framing.write_empty ~buf_pool ~encoding oc meta ();
   oc#flush ()
 
 let[@inline] apply_middleware ~service_name rpc (h : _ Handler.t)
     (m : Middleware.Server.t) : _ Handler.t =
   m.handle ~service_name rpc h
 
-let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
-    unit =
+let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
+    ~encoding () : unit =
   let@ _sp =
     Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-req"
   in
@@ -158,10 +159,11 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
     (* when [fut] is done, send result *)
     Fut.on_result fut (function
       | Ok (headers, res) ->
-        send_response_or_error ~buf_pool ~oc ~meta ~rpc ~headers (Ok res)
+        send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc ~headers
+          (Ok res)
       | Error (exn, bt) ->
         let res = Error (Error.of_exn ~bt exn) in
-        send_response_or_error ~buf_pool ~oc ~meta ~rpc res)
+        send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc res)
   in
 
   let compute_stream_response f ~push_stream req : unit =
@@ -177,7 +179,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
       Push_stream.close push_stream
     with exn ->
       let err = Error.of_exn ~bt exn in
-      send_error ~buf_pool ~meta ~oc err
+      send_error ~buf_pool ~meta ~oc ~encoding err
   in
 
   let res : unit Error.result =
@@ -193,7 +195,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
     | None -> Error.failf "method not found: %S." meth_name
     | Some (service_name, Handler { h = Unary initial_handler; rpc }) ->
       (* read request here, but process it in the background *)
-      let req = Framing.read_body_req ~buf_pool ic ~meta rpc in
+      let req = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in
 
       let handler =
         List.fold_left
@@ -210,7 +212,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
               rpc;
               h = Client_stream (Client_stream_handler ({ init; _ } as handler));
             } ) ->
-      Framing.read_empty ~buf_pool ic ~meta;
+      Framing.read_empty ~buf_pool ic ~encoding ~meta;
 
       (* create stream bookkeeping data *)
       let state = init () in
@@ -221,19 +223,19 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
       in
       ()
     | Some (_, Handler { rpc; h = Server_stream f }) ->
-      let req = Framing.read_body_req ~buf_pool ic ~meta rpc in
+      let req = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in
 
       let closed = Atomic.make false in
 
       let push res : unit =
         if not (Atomic.get closed) then
-          send_stream_item ~buf_pool ~oc ~meta ~rpc res
+          send_stream_item ~buf_pool ~oc ~encoding ~meta ~rpc res
       in
 
       let close () : unit =
         if not (Atomic.exchange closed true) then (
           Log.debug (fun k -> k "server: send stream close");
-          send_stream_close ~buf_pool ~oc ~meta ()
+          send_stream_close ~buf_pool ~oc ~encoding ~meta ()
         )
       in
 
@@ -246,20 +248,20 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
       Error.failf "Cannot handle method %S." meth_name
   in
 
-  send_nothing_or_error ~buf_pool ~oc ~meta res
+  send_nothing_or_error ~buf_pool ~oc ~encoding ~meta res
 
 let remove_stream_ (self : t) (id : int32) : unit =
   Log.debug (fun k -> k "(server.remove-stream@ :id %ld@]" id);
   let@ self = Lock.with_lock self.st in
   Int32_tbl.remove self.streams id
 
-let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
-    unit =
+let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
+    ~encoding () : unit =
   let@ _sp =
     Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-close"
   in
   assert (meta.kind = Meta.Client_stream_close);
-  Framing.read_empty ~buf_pool ic ~meta;
+  Framing.read_empty ~buf_pool ~encoding ic ~meta;
 
   match
     let@ self = Lock.with_lock self.st in
@@ -281,10 +283,10 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
       handler.on_close state
     in
 
-    send_response_or_error ~buf_pool ~oc ~meta ~rpc res
+    send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc res
 
-let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
-    unit =
+let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
+    ~encoding () : unit =
   let@ _sp =
     Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-item"
   in
@@ -302,7 +304,7 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
       f state item
     in
 
-    send_nothing_or_error ~oc ~buf_pool ~meta res
+    send_nothing_or_error ~oc ~encoding ~buf_pool ~meta res
   in
 
   let res : unit Error.result =
@@ -314,8 +316,8 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc () :
     | None -> Error.failf "No stream with id=%ld found." meta.id
     | Some (Str_client_stream { state; rpc; handler }) ->
       (* read item here, but process it in the background *)
-      let item = Framing.read_body_req ~buf_pool ic ~meta rpc in
+      let item = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in
       call_handler_ state handler.on_item item
   in
 
-  send_nothing_or_error ~buf_pool ~oc ~meta res
+  send_nothing_or_error ~buf_pool ~oc ~encoding ~meta res

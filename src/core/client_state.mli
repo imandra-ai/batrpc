@@ -5,8 +5,7 @@ type t
 (** Client-side state. This tracks the state of
     in-flight requests and active streams. *)
 
-val create :
-  ?middlewares:Middleware.Client.t list -> encoding:Encoding.t -> unit -> t
+val create : ?middlewares:Middleware.Client.t list -> unit -> t
 (** New client state *)
 
 val add_middleware : t -> Middleware.Client.t -> unit
@@ -16,6 +15,7 @@ val handle_response :
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.bufferized_t ->
+  encoding:Encoding.t ->
   unit ->
   unit
 
@@ -24,6 +24,7 @@ val handle_error :
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.bufferized_t ->
+  encoding:Encoding.t ->
   unit ->
   unit
 
@@ -32,6 +33,7 @@ val handle_stream_item :
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.bufferized_t ->
+  encoding:Encoding.t ->
   unit ->
   unit
 
@@ -40,6 +42,7 @@ val handle_stream_close :
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.bufferized_t ->
+  encoding:Encoding.t ->
   unit ->
   unit
 
@@ -47,7 +50,8 @@ val call :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:#Io.Out.t Lock.t ->
+  oc:#Io.Out.bufferized_t Lock.t ->
+  encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,
@@ -63,7 +67,8 @@ val call_client_stream :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:#Io.Out.t Lock.t ->
+  oc:#Io.Out.bufferized_t Lock.t ->
+  encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,
@@ -82,7 +87,8 @@ val call_server_stream :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:#Io.Out.t Lock.t ->
+  oc:#Io.Out.bufferized_t Lock.t ->
+  encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,

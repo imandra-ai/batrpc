@@ -103,7 +103,8 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
      to propagate cancellation to it *)
   let rpc_conn : Rpc_conn.t =
     Rpc_conn.create ~active:self.active ~buf_pool:self.buf_pool
-      ~runner:self.runner ~encoding ~timer:self.timer ~ic ~oc ()
+      ~server_state:self.st ~runner:self.runner ~encoding ~timer:self.timer ~ic
+      ~oc ()
   in
 
   Fut.on_result (Rpc_conn.on_close rpc_conn) (fun _ ->
