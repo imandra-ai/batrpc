@@ -14,13 +14,13 @@ open struct
       (try decode j
        with Pbrt_yojson.E.Failure err ->
          let msg = spf "could not decode json: %s" @@ string_of_error err in
-         Error.raise_err @@ Error.Deser_error msg)
+         Error.raise_err (Error.Deser_error msg))
     | exception _ -> Error.raise_err (Error.Deser_error "invalid json")
 
   let read_line_exn_ (ic : #Io.In.bufferized_t) : string =
     match ic#read_line () with
     | Some s -> s
-    | None -> Error.raise_err @@ Error.Network_error "Could not read next line"
+    | None -> Error.raise_err (Error.Network_error "Could not read next line")
 end
 
 (** Size of body above which we apply zlib compression. *)
