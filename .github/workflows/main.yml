@@ -32,7 +32,7 @@ jobs:
           dune-cache: true
           allow-prerelease-opam: true
 
-      - run: opam install -t batrpc --deps-only
+      - run: opam install -t batrpc batrpc-otel --deps-only
       - run: opam exec -- dune build @install --ignore-promoted-rules
       - run: opam exec -- dune runtest --ignore-promoted-rules
 
