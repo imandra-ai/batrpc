@@ -52,7 +52,7 @@ let close_real_ ~join_bg self : unit =
       in
       Log.debug (fun k -> k "send 'close' message");
       Framing.write_empty oc ~encoding:self.encoding
-        (Meta.make_meta ~id:0l ~body_size:0l ~kind:Meta.Close ~headers:[] ())
+        (Meta.make_meta ~id:0l ~kind:Meta.Close ~headers:[] ())
         ();
       oc#flush ()
     );

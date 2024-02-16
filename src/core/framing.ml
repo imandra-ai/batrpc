@@ -8,6 +8,10 @@ open struct
     | Pbrt_yojson.E.Malformed_variant variant_name ->
       Printf.sprintf "Malformed variant (variant name: %s)" variant_name
 
+  let unwrap_body_size = function
+    | Some i -> i
+    | None -> Error.raise_err (Error.Deser_error "missing body_size")
+
   let decode_json_ decode (str : string) =
     match Yojson.Basic.from_string str with
     | j ->
@@ -52,7 +56,7 @@ let read_meta ~buf_pool ic ~encoding : _ option =
   | Encoding.Json -> read_meta_j ic
 
 let read_with_dec_ ~buf_pool ic ~(meta : Meta.meta) ~what ~f_dec =
-  let body_size = meta.body_size |> Int32.to_int in
+  let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
   let@ buf = Buf_pool.with_buf buf_pool body_size in
   ic#really_input buf 0 body_size;
 
@@ -119,7 +123,7 @@ let read_error ~buf_pool (ic : #Io.In.t) ~encoding ~(meta : Meta.meta) :
 let read_and_discard ~buf_pool ic ~encoding ~(meta : Meta.meta) : unit =
   match encoding with
   | Encoding.Binary ->
-    let body_size = meta.body_size |> Int32.to_int in
+    let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
     let@ buf = Buf_pool.with_buf buf_pool body_size in
     ic#really_input buf 0 body_size
   | Encoding.Json -> ignore (read_line_exn_ ic : string)
@@ -195,7 +199,7 @@ let write_with_b_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
   (* send meta *)
   let meta : Meta.meta =
     let body_size = Int32.of_int (Bytes.length body_str) in
-    { meta with Meta.body_compression; body_size }
+    { meta with Meta.body_compression; body_size = Some body_size }
   in
   write_meta_b ~enc oc meta;
   oc#output body_str 0 (Bytes.length body_str)
@@ -204,7 +208,7 @@ let write_with_j_ (oc : #Io.Out.bufferized_t) ~(meta : Meta.meta) ~f_enc x :
     unit =
   (* send meta *)
   let meta : Meta.meta =
-    { meta with Meta.body_compression = None; body_size = 0l }
+    { meta with Meta.body_compression = None; body_size = None }
   in
   write_meta_j_ oc meta;
   let j = f_enc x |> Yojson.Basic.to_string in

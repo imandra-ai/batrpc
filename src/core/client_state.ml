@@ -191,9 +191,7 @@ let prepare_query_ (self : state) ~(rpc : _ Service.Client.rpc) ~headers
     Namespacing.assemble_meth_name ~prefix:service_prefix rpc.rpc_name
   in
 
-  let meta =
-    Meta.make_meta ~id ~meth:(Some meth) ~kind:Request ~body_size:0l ~headers ()
-  in
+  let meta = Meta.make_meta ~id ~meth:(Some meth) ~kind:Request ~headers () in
   id, meta
 
 (** Write request to [oc] in as small a critical section as possible *)
@@ -286,9 +284,7 @@ let call_client_stream (self : t) ?buf_pool ~timer
       Tracing_.with_span ~__FILE__ ~__LINE__
         "bin-rpc.client.send-client-stream-item"
     in
-    let meta =
-      Meta.make_meta ~id ~kind:Client_stream_item ~body_size:0l ~headers ()
-    in
+    let meta = Meta.make_meta ~id ~kind:Client_stream_item ~headers () in
 
     let@ enc = with_pbrt_enc_ ?buf_pool () in
     Pbrt.Encoder.clear enc;
@@ -303,9 +299,7 @@ let call_client_stream (self : t) ?buf_pool ~timer
       Tracing_.with_span ~__FILE__ ~__LINE__
         "bin-rpc.client.send-client-stream-close"
     in
-    let meta =
-      Meta.make_meta ~id ~kind:Client_stream_close ~body_size:0l ~headers ()
-    in
+    let meta = Meta.make_meta ~id ~kind:Client_stream_close ~headers () in
 
     let@ enc = with_pbrt_enc_ ?buf_pool () in
     Pbrt.Encoder.clear enc;

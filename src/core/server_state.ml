@@ -90,9 +90,7 @@ let create ?(middlewares = []) ~services () : t =
 let send_error ~buf_pool ~(meta : Meta.meta) ~oc ~encoding err : unit =
   let msg = Error.show err in
   let err = Meta.make_error ~msg () in
-  let meta =
-    Meta.make_meta ~id:meta.id ~kind:Meta.Error ~body_size:0l ~headers:[] ()
-  in
+  let meta = Meta.make_meta ~id:meta.id ~kind:Meta.Error ~headers:[] () in
 
   let@ oc = Lock.with_lock oc in
   Framing.write_error ~buf_pool ~encoding oc meta err;
@@ -110,9 +108,7 @@ let send_response_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc
     ?(headers = []) (res : _ Error.result) : unit =
   match res with
   | Ok res ->
-    let meta =
-      Meta.make_meta ~id:meta.id ~kind:Meta.Response ~body_size:0l ~headers ()
-    in
+    let meta = Meta.make_meta ~id:meta.id ~kind:Meta.Response ~headers () in
 
     (* send response, atomically *)
     let@ oc = Lock.with_lock oc in
@@ -125,8 +121,7 @@ let send_response_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc
 let send_stream_item ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc res : unit
     =
   let meta =
-    Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_item ~body_size:0l
-      ~headers:[] ()
+    Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_item ~headers:[] ()
   in
 
   let@ oc = Lock.with_lock oc in
@@ -135,8 +130,7 @@ let send_stream_item ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc res : unit
 
 let send_stream_close ~buf_pool ~oc ~encoding ~(meta : Meta.meta) () : unit =
   let meta =
-    Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_close ~body_size:0l
-      ~headers:[] ()
+    Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_close ~headers:[] ()
   in
 
   let@ oc = Lock.with_lock oc in
