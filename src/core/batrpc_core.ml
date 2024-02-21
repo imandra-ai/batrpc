@@ -11,6 +11,7 @@ module Net_stats = Net_stats
 module Push_stream = Push_stream
 module Rpc_conn = Rpc_conn
 module Server_for_client = Server_for_client
+module Server_handler = Server_handler
 module Server_state = Server_state
 module Switch = Switch
 module Timer = Timer
