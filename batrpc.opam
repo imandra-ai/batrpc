@@ -13,6 +13,7 @@ depends: [
   "atomic"
   "logs"
   "camlzip"
+  "iostream" {>= "0.2"}
   "hmap"
   "pbrt" {>= "3.0"}
   "pbrt_yojson" {>= "3.0"}

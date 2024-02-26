@@ -17,6 +17,7 @@
     logs
     camlzip
     ;(ocaml-protoc (and (>= 3.0) (< 4.0)))
+    (iostream (>= 0.2))
     hmap
     (pbrt (>= 3.0))
     (pbrt_yojson (>= 3.0))

@@ -17,14 +17,11 @@
 open Common_
 
 val read_meta :
-  buf_pool:Buf_pool.t ->
-  #Io.In.bufferized_t ->
-  encoding:Encoding.t ->
-  Meta.meta option
+  buf_pool:Buf_pool.t -> #Io.In.t -> encoding:Encoding.t -> Meta.meta option
 
 val read_body_req :
   buf_pool:Buf_pool.t ->
-  #Io.In.bufferized_t ->
+  #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
   ('req, _, _, _) Service.Server.rpc ->
@@ -32,7 +29,7 @@ val read_body_req :
 
 val read_body_res :
   buf_pool:Buf_pool.t ->
-  #Io.In.bufferized_t ->
+  #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
   (_, _, 'res, _) Service.Client.rpc ->
@@ -40,7 +37,7 @@ val read_body_res :
 
 val read_and_discard :
   buf_pool:Buf_pool.t ->
-  #Io.In.bufferized_t ->
+  #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
   unit
@@ -50,14 +47,14 @@ val read_and_discard :
 
 val read_error :
   buf_pool:Buf_pool.t ->
-  #Io.In.bufferized_t ->
+  #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
   Meta.error
 
 val read_empty :
   buf_pool:Buf_pool.t ->
-  #Io.In.bufferized_t ->
+  #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
   unit
@@ -65,7 +62,7 @@ val read_empty :
 val write_req :
   ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
-  #Io.Out.bufferized_t ->
+  #Io.Out.t ->
   encoding:Encoding.t ->
   ('req, _, _, _) Service.Client.rpc ->
   Meta.meta ->
@@ -75,7 +72,7 @@ val write_req :
 val write_error :
   ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
-  #Io.Out.bufferized_t ->
+  #Io.Out.t ->
   encoding:Encoding.t ->
   Meta.meta ->
   Meta.error ->
@@ -84,7 +81,7 @@ val write_error :
 val write_empty :
   ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
-  #Io.Out.bufferized_t ->
+  #Io.Out.t ->
   encoding:Encoding.t ->
   Meta.meta ->
   unit ->
@@ -93,7 +90,7 @@ val write_empty :
 val write_res :
   ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
-  #Io.Out.bufferized_t ->
+  #Io.Out.t ->
   encoding:Encoding.t ->
   (_, _, 'res, _) Service.Server.rpc ->
   Meta.meta ->

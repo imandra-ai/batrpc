@@ -31,7 +31,7 @@ let write_to_oc (oc : #Io.Out.t) (self : t) : unit =
 let read_from_ic (ic : #Io.In.t) : t =
   let magic_number =
     let bs4 = Bytes.create 4 in
-    ic#really_input bs4 0 4;
+    Io.In.really_input ic bs4 0 4;
     Bytes.get_int32_le bs4 0
   in
 

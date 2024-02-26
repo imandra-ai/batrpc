@@ -12,7 +12,7 @@ let create :
     services:handler Service.Server.t list ->
     runner:Runner.t ->
     timer:Timer.t ->
-    ic:#Io.In.bufferized_t ->
+    ic:#Io.In.t ->
     oc:#Io.Out.t ->
     unit ->
     t =

@@ -15,10 +15,8 @@ type t = {
   encoding: Encoding.t;
   as_server: Server_state.t;
   as_client: Client_state.t;
-  ic: Io.In.bufferized_t;
-      (** Input stream. Only read by the background worker. *)
-  oc: Io.Out.bufferized_t Lock.t;
-      (** Output stream, shared between many tasks *)
+  ic: Io.In.t;  (** Input stream. Only read by the background worker. *)
+  oc: Io.Out.t Lock.t;  (** Output stream, shared between many tasks *)
   on_close_promise: unit Fut.promise;
   on_close: unit Fut.t;
   mutable background_worker: Thread.t option;
@@ -142,8 +140,7 @@ let background_worker (self : t) : unit =
   Log.debug (fun k -> k "rpc-conn bg: exiting")
 
 let create ?(buf_pool = Buf_pool.create ()) ?active ?server_state ~encoding
-    ~runner ~timer ~(ic : #Io.In.bufferized_t) ~(oc : #Io.Out.bufferized_t) () :
-    t =
+    ~runner ~timer ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
   let server_state =
     match server_state with
     | None -> Server_state.create ~services:[] ()
@@ -151,8 +148,8 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?server_state ~encoding
   in
   let client_state = Client_state.create () in
 
-  let ic = (ic :> Io.In.bufferized_t) in
-  let oc = (oc :> Io.Out.bufferized_t) in
+  let ic = (ic :> Io.In.t) in
+  let oc = (oc :> Io.Out.t) in
 
   let on_close, on_close_promise = Fut.make () in
   let self =

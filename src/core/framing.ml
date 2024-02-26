@@ -21,8 +21,8 @@ open struct
          Error.raise_err (Error.Deser_error msg))
     | exception _ -> Error.raise_err (Error.Deser_error "invalid json")
 
-  let read_line_exn_ (ic : #Io.In.bufferized_t) : string =
-    match ic#read_line () with
+  let read_line_exn_ (ic : #Io.In.t) : string =
+    match Io.In.input_line ic with
     | Some s -> s
     | None -> Error.raise_err (Error.Network_error "Could not read next line")
 end
@@ -32,21 +32,21 @@ let compression_threshold = 2 * 1024
 
 let read_meta_b ~buf_pool (ic : #Io.In.t) : Meta.meta option =
   let size_buf = Bytes.create 2 in
-  match ic#really_input size_buf 0 2 with
+  match Io.In.really_input ic size_buf 0 2 with
   | exception End_of_file -> None
   | () ->
     let size = Bytes.get_int16_le size_buf 0 in
     let meta =
       let@ buf = Buf_pool.with_buf buf_pool size in
-      ic#really_input buf 0 size;
+      Io.In.really_input ic buf 0 size;
       let dec = Pbrt.Decoder.of_subbytes buf 0 size in
       Meta.decode_pb_meta dec
     in
 
     Some meta
 
-let read_meta_j (ic : #Io.In.bufferized_t) : Meta.meta option =
-  match ic#read_line () with
+let read_meta_j (ic : #Io.In.t) : Meta.meta option =
+  match Io.In.input_line ic with
   | None -> None
   | Some j -> Some (decode_json_ Meta.decode_json_meta j)
 
@@ -58,7 +58,7 @@ let read_meta ~buf_pool ic ~encoding : _ option =
 let read_with_dec_ ~buf_pool ic ~(meta : Meta.meta) ~what ~f_dec =
   let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
   let@ buf = Buf_pool.with_buf buf_pool body_size in
-  ic#really_input buf 0 body_size;
+  Io.In.really_input ic buf 0 body_size;
 
   (* decompress if needed *)
   let buf, body_size =
@@ -76,14 +76,14 @@ let read_with_dec_ ~buf_pool ic ~(meta : Meta.meta) ~what ~f_dec =
     let ctx = Error.(mk @@ Deser_error err) in
     Error.(failf ~ctx "Reading body of %s failed" what)
 
-let read_with_dec_j_ (ic : #Io.In.bufferized_t) ~what ~f_dec =
+let read_with_dec_j_ (ic : #Io.In.t) ~what ~f_dec =
   try
     let line = read_line_exn_ ic in
     decode_json_ f_dec line
   with Error.E err -> Error.(failf ~ctx:err "Reading body of %s failed" what)
 
-let read_body_req ~buf_pool (ic : #Io.In.bufferized_t) ~encoding
-    ~(meta : Meta.meta) (rpc : _ Service.Server.rpc) =
+let read_body_req ~buf_pool (ic : #Io.In.t) ~encoding ~(meta : Meta.meta)
+    (rpc : _ Service.Server.rpc) =
   let@ () =
     Error.guardf (fun k ->
         k "Batrpc: reading the request for method %S" rpc.name)
@@ -125,7 +125,7 @@ let read_and_discard ~buf_pool ic ~encoding ~(meta : Meta.meta) : unit =
   | Encoding.Binary ->
     let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
     let@ buf = Buf_pool.with_buf buf_pool body_size in
-    ic#really_input buf 0 body_size
+    Io.In.really_input ic buf 0 body_size
   | Encoding.Json -> ignore (read_line_exn_ ic : string)
 
 let read_empty ~buf_pool (ic : #Io.In.t) ~encoding ~(meta : Meta.meta) =
@@ -175,7 +175,7 @@ let write_meta_b ~enc oc meta : unit =
 
 let write_meta_j_ oc meta : unit =
   let j = Meta.encode_json_meta meta |> Yojson.Basic.to_string in
-  oc#output_line j
+  Io.Out.output_line oc j
 
 let write_with_b_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
     unit =
@@ -204,15 +204,14 @@ let write_with_b_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
   write_meta_b ~enc oc meta;
   oc#output body_str 0 (Bytes.length body_str)
 
-let write_with_j_ (oc : #Io.Out.bufferized_t) ~(meta : Meta.meta) ~f_enc x :
-    unit =
+let write_with_j_ (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x : unit =
   (* send meta *)
   let meta : Meta.meta =
     { meta with Meta.body_compression = None; body_size = None }
   in
   write_meta_j_ oc meta;
   let j = f_enc x |> Yojson.Basic.to_string in
-  oc#output_line j
+  Io.Out.output_line oc j
 
 let write_req ?buf_pool ?enc (oc : #Io.Out.t) ~encoding
     (rpc : _ Service.Client.rpc) meta req : unit =

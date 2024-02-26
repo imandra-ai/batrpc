@@ -74,8 +74,8 @@ val handle_request :
   runner:Runner.t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
-  ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.bufferized_t Lock.t ->
+  ic:#Io.In.t ->
+  oc:#Io.Out.t Lock.t ->
   encoding:Encoding.t ->
   unit ->
   unit
@@ -89,8 +89,8 @@ val handle_stream_item :
   t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
-  ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.bufferized_t Lock.t ->
+  ic:#Io.In.t ->
+  oc:#Io.Out.t Lock.t ->
   encoding:Encoding.t ->
   unit ->
   unit
@@ -101,8 +101,8 @@ val handle_stream_close :
   t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
-  ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.bufferized_t Lock.t ->
+  ic:#Io.In.t ->
+  oc:#Io.Out.t Lock.t ->
   encoding:Encoding.t ->
   unit ->
   unit

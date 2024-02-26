@@ -18,8 +18,8 @@ val create :
   encoding:Encoding.t ->
   runner:Runner.t ->
   timer:Timer.t ->
-  ic:#Io.In.bufferized_t ->
-  oc:#Io.Out.bufferized_t ->
+  ic:#Io.In.t ->
+  oc:#Io.Out.t ->
   unit ->
   t
 

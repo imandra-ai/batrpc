@@ -76,20 +76,18 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
   Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
 
   let ic =
-    new Io.In.bufferized
-    @@ new Io.In.of_fd
-         ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received
-         client_sock
+    new Io.In.of_fd
+      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received
+      client_sock
   in
   let oc =
-    new Io.Out.bufferized
-    @@ new Io.Out.of_fd
-         ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.n_sent client_sock
+    new Io.Out.of_fd
+      ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.n_sent client_sock
   in
 
   let magic_number =
     let bs4 = Bytes.create 4 in
-    ic#really_input bs4 0 4;
+    Io.In.really_input ic bs4 0 4;
     Bytes.get_int32_le bs4 0
   in
 

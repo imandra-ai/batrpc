@@ -231,9 +231,8 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc :
 
 let default_timeout_s_ : float = 30.
 
-let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.bufferized_t Lock.t)
-    ~encoding ?(headers = []) ?(timeout_s = default_timeout_s_) rpc req :
-    _ Fut.t =
+let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t) ~encoding
+    ?(headers = []) ?(timeout_s = default_timeout_s_) rpc req : _ Fut.t =
   let initial_handler =
     mk_unary_handler self ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc
   in
@@ -245,8 +244,8 @@ let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.bufferized_t Lock.t)
   let ctx = { Handler.headers; hmap = Hmap.empty } in
   handler (ctx, req) |> Fut.map ~f:snd
 
-let call_client_stream (self : t) ?buf_pool ~timer
-    ~(oc : #Io.Out.bufferized_t Lock.t) ~encoding ?(headers = []) ?timeout_s
+let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
+    ~encoding ?(headers = []) ?timeout_s
     (rpc :
       ( 'req,
         Service.Value_mode.stream,
@@ -317,9 +316,8 @@ let call_client_stream (self : t) ?buf_pool ~timer
   let fut = fut |> Fut.map ~f:snd in
   stream, fut
 
-let call_server_stream (self : t) ?buf_pool ~timer
-    ~(oc : #Io.Out.bufferized_t Lock.t) ~encoding ?(headers = [])
-    ?(timeout_s = default_timeout_s_)
+let call_server_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
+    ~encoding ?(headers = []) ?(timeout_s = default_timeout_s_)
     (rpc :
       ( 'req,
         Service.Value_mode.unary,

@@ -7,6 +7,7 @@
   atomic
   moonpool
   batrpc.util
+  iostream
   pbrt
   pbrt_yojson
   hmap

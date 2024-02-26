@@ -16,7 +16,7 @@ val handle_response :
   t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
-  ic:#Io.In.bufferized_t ->
+  ic:#Io.In.t ->
   encoding:Encoding.t ->
   unit ->
   unit
@@ -25,7 +25,7 @@ val handle_error :
   t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
-  ic:#Io.In.bufferized_t ->
+  ic:#Io.In.t ->
   encoding:Encoding.t ->
   unit ->
   unit
@@ -34,7 +34,7 @@ val handle_stream_item :
   t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
-  ic:#Io.In.bufferized_t ->
+  ic:#Io.In.t ->
   encoding:Encoding.t ->
   unit ->
   unit
@@ -43,7 +43,7 @@ val handle_stream_close :
   t ->
   buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
-  ic:#Io.In.bufferized_t ->
+  ic:#Io.In.t ->
   encoding:Encoding.t ->
   unit ->
   unit
@@ -52,7 +52,7 @@ val call :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:#Io.Out.bufferized_t Lock.t ->
+  oc:#Io.Out.t Lock.t ->
   encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
@@ -69,7 +69,7 @@ val call_client_stream :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:#Io.Out.bufferized_t Lock.t ->
+  oc:#Io.Out.t Lock.t ->
   encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
@@ -89,7 +89,7 @@ val call_server_stream :
   t ->
   ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
-  oc:#Io.Out.bufferized_t Lock.t ->
+  oc:#Io.Out.t Lock.t ->
   encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
