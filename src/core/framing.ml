@@ -202,7 +202,8 @@ let write_with_b_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
     { meta with Meta.body_compression; body_size = Some body_size }
   in
   write_meta_b ~enc oc meta;
-  oc#output body_str 0 (Bytes.length body_str)
+  oc#output body_str 0 (Bytes.length body_str);
+  ()
 
 let write_with_j_ (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x : unit =
   (* send meta *)

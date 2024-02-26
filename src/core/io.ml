@@ -10,14 +10,20 @@ module In = struct
 
   class of_fd ?(shutdown = false) ?n_received ?(close_noerr = false)
     (fd : Unix.file_descr) : t =
+    let eof = ref false in
     object
       inherit t_from_refill ()
 
       method private refill (slice : Slice.t) =
-        slice.len <- Unix.read fd slice.bytes 0 (Bytes.length slice.bytes);
-        Byte_counter.add_opt n_received slice.len
+        if not !eof then (
+          slice.len <- Unix.read fd slice.bytes 0 (Bytes.length slice.bytes);
+          slice.off <- 0;
+          if slice.len = 0 then eof := true;
+          Byte_counter.add_opt n_received slice.len
+        )
 
       method! close () =
+        eof := true;
         if shutdown then (
           try Unix.shutdown fd Unix.SHUTDOWN_RECEIVE with _ -> ()
         );
