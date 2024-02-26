@@ -1,11 +1,13 @@
 open Common_
 module Push_stream = Push_stream
 
+type 'a with_ctx = 'a Handler.with_ctx
+
 (** A in-flight query: we're still waiting for a response. *)
 type in_flight =
   | IF_unary : {
       rpc: (_, _, 'res, _) Service.Client.rpc;
-      promise: (headers * 'res) Fut.promise;
+      promise: 'res with_ctx Fut.promise;
       bt: Printexc.raw_backtrace;
     }
       -> in_flight
@@ -13,8 +15,8 @@ type in_flight =
       rpc: (_, _, 'item, _) Service.Client.rpc;
       state: 'state;
       on_item: 'state -> 'item -> unit;
-      on_close: 'state -> 'res;
-      promise: 'res Fut.promise;
+      on_close: 'state -> 'res with_ctx;
+      promise: 'res with_ctx Fut.promise;
       bt: Printexc.raw_backtrace;
     }
       -> in_flight
@@ -49,7 +51,8 @@ let handle_response (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding () :
   | Some (IF_unary { rpc; promise; _ }) ->
     remove_from_tbl_ self meta.id;
     let res = Framing.read_body_res ~buf_pool ic ~encoding rpc ~meta in
-    Fut.fulfill_idempotent promise (Ok (meta.headers, res))
+    let ctx = { Handler.headers = meta.headers; hmap = Hmap.empty } in
+    Fut.fulfill_idempotent promise (Ok (ctx, res))
   | Some (IF_stream _) ->
     remove_from_tbl_ self meta.id;
     Framing.read_and_discard ~buf_pool ~meta ~encoding ic;
@@ -205,7 +208,7 @@ let send_request_ ?buf_pool ~oc ~encoding ~meta ~rpc req : unit =
 
 let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc :
     _ Handler.t =
- fun headers req : _ Fut.t ->
+ fun (ctx, req) : _ Fut.t ->
   (* TODO: can we just avoid that? *)
   let bt = Printexc.get_callstack 5 in
 
@@ -217,7 +220,7 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc :
   let id, meta =
     (* critical section to update internal state *)
     let@ self = Lock.with_lock self.st in
-    prepare_query_ self ~rpc ~headers ~in_flight ()
+    prepare_query_ self ~rpc ~headers:ctx.headers ~in_flight ()
   in
 
   (* setup timeout *)
@@ -239,7 +242,8 @@ let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.bufferized_t Lock.t)
       (Lock.get self.st).middlewares
   in
 
-  handler headers req |> Fut.map ~f:snd
+  let ctx = { Handler.headers; hmap = Hmap.empty } in
+  handler (ctx, req) |> Fut.map ~f:snd
 
 let call_client_stream (self : t) ?buf_pool ~timer
     ~(oc : #Io.Out.bufferized_t Lock.t) ~encoding ?(headers = []) ?timeout_s
@@ -328,7 +332,8 @@ let call_server_stream (self : t) ?buf_pool ~timer
 
   let fut, promise = Fut.make () in
 
-  let state = init () in
+  let ctx = { Handler.hmap = Hmap.empty; headers } in
+  let state = init (ctx, ()) in
   let in_flight = IF_stream { rpc; state; on_item; on_close; bt; promise } in
 
   let id, meta =
@@ -340,4 +345,4 @@ let call_server_stream (self : t) ?buf_pool ~timer
   Timer.run_after_s timer timeout_s (fun () -> handle_timeout self id);
 
   send_request_ ?buf_pool ~oc ~encoding ~meta ~rpc req;
-  fut
+  fut |> Fut.map ~f:snd

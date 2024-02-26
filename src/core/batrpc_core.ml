@@ -24,7 +24,9 @@ module Log_rpc = Common_.Log
 
 type header = Meta.header
 type handler = Server_state.handler
+type ctx = Handler.ctx
 
+let empty_ctx = Handler.empty_ctx
 let mk_handler = Server_state.mk_handler
 let mk_handler_full = Server_state.mk_handler_full
 let mk_server_stream_handler = Server_state.mk_server_stream_handler

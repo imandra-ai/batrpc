@@ -61,14 +61,17 @@ let header_span_ctx (sp : Otel.Span_ctx.t) : header =
     ~value:(Bytes.unsafe_to_string @@ Otel.Span_ctx.to_w3c_trace_context sp)
     ()
 
+let k_trace_ctx : Otel.Span_ctx.t Hmap.key = Hmap.Key.create ()
+
 module Server = struct
   (** Middleware that instruments request handlers *)
   let trace_ : Middleware.Server.t =
     {
       handle =
-        (fun ~service_name rpc handler headers req : _ Fut.t ->
+        (fun ~service_name rpc handler ((ctx, req) : _ Server_handler.with_ctx)
+             : _ Server_handler.with_ctx Fut.t ->
           let trace_id, parent_id =
-            match get_span_ctx headers with
+            match get_span_ctx ctx.headers with
             | None -> None, None
             | Some sp ->
               ( Some (Otel.Span_ctx.trace_id sp),
@@ -77,14 +80,15 @@ module Server = struct
           Util_.instrument_fut
             ~attrs:[ "service", `String service_name ]
             ~kind:Span.Span_kind_server ~trace_id ~parent_id ("rpc." ^ rpc.name)
-            (fun ctx () ->
-              (* add [ctx] to headers *)
-              let headers =
-                match ctx with
-                | None -> headers
-                | Some ctx -> header_span_ctx ctx :: headers
+            (fun otel_ctx () ->
+              (* add [otel_ctx] to the hmap *)
+              let ctx =
+                match otel_ctx with
+                | None -> ctx
+                | Some otel_ctx ->
+                  { ctx with hmap = Hmap.add k_trace_ctx otel_ctx ctx.hmap }
               in
-              handler headers req));
+              handler (ctx, req)));
     }
 
   let middlewares () : _ list = [ trace_ ]

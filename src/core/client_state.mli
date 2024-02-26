@@ -1,6 +1,8 @@
 open Common_
 module Push_stream = Push_stream
 
+type 'a with_ctx = Handler.ctx * 'a
+
 type t
 (** Client-side state. This tracks the state of
     in-flight requests and active streams. *)
@@ -96,9 +98,9 @@ val call_server_stream :
     'item,
     Service.Value_mode.stream )
   Service.Client.rpc ->
-  init:(unit -> 'state) ->
+  init:(unit with_ctx -> 'state) ->
   on_item:('state -> 'item -> unit) ->
-  on_close:('state -> 'res) ->
+  on_close:('state -> 'res with_ctx) ->
   'req ->
   'res Fut.t
 (** Call a RPC method that takes a request and returns a stream from

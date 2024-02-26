@@ -9,6 +9,7 @@ val pp : Format.formatter -> t -> unit
 val show : t -> string
 
 type handler = Server_handler.t
+type 'a with_ctx = Handler.ctx * 'a
 
 val mk_handler :
   ( 'req,
@@ -26,7 +27,7 @@ val mk_handler_full :
     'res,
     Service.Value_mode.unary )
   Service.Server.rpc ->
-  (header list -> 'req -> (header list * 'res) Fut.t) ->
+  ('req with_ctx -> 'res with_ctx Fut.t) ->
   handler
 (** Make a full request/reply handler, with headers *)
 
@@ -36,9 +37,9 @@ val mk_client_stream_handler :
     'res,
     Service.Value_mode.unary )
   Service.Server.rpc ->
-  init:(unit -> 'state) ->
+  init:(unit with_ctx -> 'state) ->
   on_item:('state -> 'req -> unit) ->
-  on_close:('state -> 'res) ->
+  on_close:('state -> 'res with_ctx) ->
   unit ->
   handler
 (** Make a handler for client-stream requests. The handler is
@@ -51,7 +52,7 @@ val mk_server_stream_handler :
     'res,
     Service.Value_mode.stream )
   Service.Server.rpc ->
-  ('req -> 'res Push_stream.t -> unit) ->
+  ('req with_ctx -> 'res Push_stream.t -> unit) ->
   handler
 (** Make a handler for server-stream. The handler can push values
    back to the client. The request ends when the stream

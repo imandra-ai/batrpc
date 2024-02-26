@@ -9,6 +9,7 @@
   batrpc.util
   pbrt
   pbrt_yojson
+  hmap
   yojson
   pbrt_services))
 

@@ -2,14 +2,16 @@ open Common_
 open Server_handler
 
 type handler = Server_handler.t
+type 'a with_ctx = Handler.ctx * 'a
 
 let mk_handler_full rpc f : handler = Handler { rpc; h = Unary f }
 
 let mk_handler rpc f : handler =
   let open Fut.Infix in
-  let f_as_handler _headers req =
+  let f_as_handler ((ctx, req) : _ Handler.with_ctx) =
     let+ res = f req in
-    [], res
+    let new_ctx = { Handler.hmap = ctx.hmap; headers = [] } in
+    new_ctx, res
   in
   mk_handler_full rpc f_as_handler
 
@@ -105,10 +107,12 @@ let send_nothing_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta)
     send_error ~buf_pool ~oc ~encoding ~meta err
 
 let send_response_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc
-    ?(headers = []) (res : _ Error.result) : unit =
+    (res : _ Handler.with_ctx Error.result) : unit =
   match res with
-  | Ok res ->
-    let meta = Meta.make_meta ~id:meta.id ~kind:Meta.Response ~headers () in
+  | Ok (ctx, res) ->
+    let meta =
+      Meta.make_meta ~id:meta.id ~kind:Meta.Response ~headers:ctx.headers ()
+    in
 
     (* send response, atomically *)
     let@ oc = Lock.with_lock oc in
@@ -148,13 +152,12 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
   in
   assert (meta.kind = Meta.Request);
 
-  let compute_res_and_reply rpc f headers req : unit =
-    let fut = f headers req in
+  let compute_res_and_reply rpc (f : _ Handler.t) (ctx, req) : unit =
+    let fut = f (ctx, req) in
     (* when [fut] is done, send result *)
     Fut.on_result fut (function
-      | Ok (headers, res) ->
-        send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc ~headers
-          (Ok res)
+      | Ok res ->
+        send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc (Ok res)
       | Error (exn, bt) ->
         let res = Error (Error.of_exn ~bt exn) in
         send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc res)
@@ -198,7 +201,8 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       in
 
       Runner.run_async runner (fun () ->
-          compute_res_and_reply rpc handler meta.headers req)
+          let ctx = { Handler.hmap = Hmap.empty; headers = meta.headers } in
+          compute_res_and_reply rpc handler (ctx, req))
     | Some
         ( _,
           Handler
@@ -209,7 +213,8 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       Framing.read_empty ~buf_pool ic ~encoding ~meta;
 
       (* create stream bookkeeping data *)
-      let state = init () in
+      let ctx = { Handler.hmap = Hmap.empty; headers = meta.headers } in
+      let state = init (ctx, ()) in
       let () =
         let@ self = Lock.with_lock self.st in
         Int32_tbl.add self.streams meta.id
@@ -236,7 +241,8 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       let push_stream : _ Push_stream.t = { push; close } in
 
       Runner.run_async runner (fun () ->
-          compute_stream_response f ~push_stream req)
+          let ctx = { Handler.hmap = Hmap.empty; headers = meta.headers } in
+          compute_stream_response f ~push_stream (ctx, req))
     | Some (_, Handler { rpc = _; h = Bidirectional_stream _ }) ->
       (* FIXME: handle bidirectional streams *)
       Error.failf "Cannot handle method %S." meth_name
@@ -268,7 +274,7 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     (* produce response upon closing *)
     remove_stream_ self meta.id;
 
-    let res =
+    let res : _ Handler.with_ctx Error.result =
       let@ _sp =
         Tracing_.with_span ~__FILE__ ~__LINE__
           "bin-rpc.server.call-stream.on-close"

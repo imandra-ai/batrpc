@@ -2,10 +2,12 @@
 
 open Common_
 
+type 'a with_ctx = 'a Handler.with_ctx
+
 type ('req, 'res, 'state) client_stream_handler_with_state = {
-  init: unit -> 'state;
+  init: unit with_ctx -> 'state;
   on_item: 'state -> 'req -> unit;
-  on_close: 'state -> 'res;
+  on_close: 'state -> 'res with_ctx;
 }
 
 type ('req, 'res) client_stream_handler =
@@ -14,7 +16,8 @@ type ('req, 'res) client_stream_handler =
       -> ('req, 'res) client_stream_handler
 [@@unboxed]
 
-type ('req, 'res) server_stream_handler = 'req -> 'res Push_stream.t -> unit
+type ('req, 'res) server_stream_handler =
+  'req with_ctx -> 'res Push_stream.t -> unit
 
 type ('req, 'res, 'state) bidirectional_stream_handler_with_state = {
   init: unit -> 'res Push_stream.t -> 'state;

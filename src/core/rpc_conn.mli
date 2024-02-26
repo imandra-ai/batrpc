@@ -8,6 +8,7 @@
 
 open Common_
 
+type 'a with_ctx = Handler.ctx * 'a
 type t
 
 val create :
@@ -86,8 +87,8 @@ val call_server_stream :
     'item,
     Service.Value_mode.stream )
   Service.Client.rpc ->
-  init:(unit -> 'state) ->
+  init:(unit with_ctx -> 'state) ->
   on_item:('state -> 'item -> unit) ->
-  on_close:('state -> 'res) ->
+  on_close:('state -> 'res with_ctx) ->
   'req ->
   'res Fut.t

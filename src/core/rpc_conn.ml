@@ -2,6 +2,7 @@ open Common_
 
 exception Closed
 
+type 'a with_ctx = Handler.ctx * 'a
 type handler = Server_state.handler
 
 type t = {

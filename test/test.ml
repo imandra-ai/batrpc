@@ -32,17 +32,18 @@ let services =
     Trivial.Beancount.Server.make
       ~add_stream:(fun rpc ->
         RPC.mk_client_stream_handler rpc
-          ~init:(fun () -> ref 0)
+          ~init:(fun (_ctx, ()) -> ref 0)
           ~on_item:(fun st (x : Trivial.single_int) ->
             Trace.messagef (fun k -> k "server got stream item %ld" x.i);
             st := !st + Int32.to_int x.i)
           ~on_close:(fun st ->
             Trace.message "server got close";
-            Trivial.make_count ~count:(Int32.of_int !st) ())
+            RPC.empty_ctx, Trivial.make_count ~count:(Int32.of_int !st) ())
           ())
       ~get_smaller_ints:(fun rpc ->
         RPC.mk_server_stream_handler rpc
-        @@ fun (i : Trivial.count) (push : _ RPC.Push_stream.t) : unit ->
+        @@ fun ((_, i) : _ * Trivial.count) (push : _ RPC.Push_stream.t) : unit
+          ->
         let@ _sp =
           Trace_core.with_span ~__FILE__ ~__LINE__
             "server.get-smaller-ints.handle"
@@ -182,10 +183,10 @@ let run_server_stream_test ~client () : unit =
     in
     Client.call_server_stream client Trivial.Beancount.Client.get_smaller_ints
       (Trivial.make_count ~count:10l ())
-      ~init:(fun () -> ref [])
+      ~init:(fun _ -> ref [])
       ~timeout_s:2.
       ~on_item:(fun l (x : Trivial.single_int) -> l := Int32.to_int x.i :: !l)
-      ~on_close:(fun l -> !l)
+      ~on_close:(fun l -> RPC.empty_ctx, !l)
   in
 
   let l = Fut.wait_block fut in
