@@ -22,7 +22,7 @@ module In = struct
           Byte_counter.add_opt n_received slice.len
         )
 
-      method! close () =
+      method close () =
         eof := true;
         if shutdown then (
           try Unix.shutdown fd Unix.SHUTDOWN_RECEIVE with _ -> ()
