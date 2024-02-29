@@ -36,4 +36,4 @@
   (synopsis "opentelemetry middleware for BatRPC")
   (depends
     (batrpc (= :version))
-    (opentelemetry (>= 0.7))))
+    (opentelemetry (>= 0.8))))

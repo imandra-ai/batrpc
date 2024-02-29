@@ -61,7 +61,9 @@ let header_span_ctx (sp : Otel.Span_ctx.t) : header =
     ~value:(Bytes.unsafe_to_string @@ Otel.Span_ctx.to_w3c_trace_context sp)
     ()
 
-let k_trace_ctx : Otel.Span_ctx.t Hmap.key = Hmap.Key.create ()
+(** Use OTEL's span ctx key. This key can be used to carry
+ around a {!Otel.Span_ctx.t}. *)
+let k_span_ctx : Otel.Span_ctx.t Hmap.key = Otel.k_span_ctx
 
 module Server = struct
   (** Middleware that instruments request handlers *)
@@ -86,7 +88,7 @@ module Server = struct
                 match otel_ctx with
                 | None -> ctx
                 | Some otel_ctx ->
-                  { ctx with hmap = Hmap.add k_trace_ctx otel_ctx ctx.hmap }
+                  { ctx with hmap = Hmap.add k_span_ctx otel_ctx ctx.hmap }
               in
               handler (ctx, req)));
     }
