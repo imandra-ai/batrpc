@@ -208,7 +208,8 @@ let t_with_pipe ~encoding () =
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let client : Client.t =
-    Client.create ~active ~timer ~encoding ~ic:ic_client ~oc:oc_client ()
+    Client.create ~active ~runner ~timer ~encoding ~ic:ic_client ~oc:oc_client
+      ()
   in
   let@ () =
     Fun.protect ~finally:(fun () ->

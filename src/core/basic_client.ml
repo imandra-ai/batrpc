@@ -6,14 +6,14 @@ let create :
     ?buf_pool:Buf_pool.t ->
     ?active:Switch.t ->
     ?encoding:Encoding.t ->
+    runner:Moonpool.Runner.t ->
     timer:Timer.t ->
     ic:#Io.In.t ->
     oc:#Io.Out.t ->
     unit ->
     t =
- fun ?buf_pool ?active ?(encoding = Encoding.Binary) ~timer ~ic ~oc () : t ->
-  (* no need for a fancy executor, we won't be serving stuff to the other side *)
-  let runner = Moonpool.Immediate_runner.runner in
+ fun ?buf_pool ?active ?(encoding = Encoding.Binary) ~runner ~timer ~ic ~oc () :
+     t ->
   Encoding.write_to_oc oc encoding;
   Rpc_conn.create ?buf_pool ~encoding ~runner ?active ~timer ~ic ~oc ()
 
