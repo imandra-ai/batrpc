@@ -5,6 +5,7 @@ module Encoding = Encoding
 module Error = Error
 module Error_kind = Error_kind
 module Framing = Framing
+module Handler = Handler
 module Io = Io
 module Middleware = Middleware
 module Net_stats = Net_stats
