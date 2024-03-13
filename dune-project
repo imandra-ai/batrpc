@@ -36,5 +36,5 @@
   (synopsis "opentelemetry middleware for BatRPC")
   (depends
     (batrpc (= :version))
-    (opentelemetry (>= 0.7)) ; FIXME: >= 0.8 once released
+    (opentelemetry (>= 0.8))
     ))

@@ -10,7 +10,7 @@ bug-reports: "https://github.com/imandra-ai/batrpc/issues"
 depends: [
   "dune" {>= "3.0"}
   "batrpc" {= version}
-  "opentelemetry" {>= "0.7"}
+  "opentelemetry" {>= "0.8"}
   "odoc" {with-doc}
 ]
 build: [
