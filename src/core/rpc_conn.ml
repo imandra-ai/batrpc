@@ -39,7 +39,7 @@ let with_logging_error_as_warning_ what f =
     Log.warn (fun k -> k "Rpc_conn: %s:@ %a" what Error.pp err)
 
 let close_real_ ~join_bg self : unit =
-  let@ _sp = Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.conn.close" in
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.conn.close" in
 
   let () =
     let@ oc = Lock.with_lock self.oc in
@@ -60,7 +60,7 @@ let close_real_ ~join_bg self : unit =
   self.ic#close ();
 
   let join_thread_ th =
-    let@ _sp = Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.rpc-conn.join" in
+    let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.rpc-conn.join" in
     Thread.join th
   in
 
@@ -88,11 +88,17 @@ let handle_close (self : t) : unit =
   Atomic.set self.other_side_did_close true;
   close_without_joining self
 
+open struct
+  let is_on_or_absent = function
+    | None -> true
+    | Some sw -> Switch.is_on sw
+end
+
 (** Main loop for the background worker. *)
 let background_worker (self : t) : unit =
-  Tracing_.set_thread_name "rpc-conn.bg";
+  Trace.set_thread_name "rpc-conn.bg";
   let@ () = with_logging_error_as_warning_ "running background loop" in
-  while Atomic.get self.is_open && Switch.is_on_or_absent self.active do
+  while Atomic.get self.is_open && is_on_or_absent self.active do
     match
       Framing.read_meta self.ic ~encoding:self.encoding ~buf_pool:self.buf_pool
     with

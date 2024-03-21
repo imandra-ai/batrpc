@@ -13,6 +13,7 @@ depends: [
   "atomic"
   "logs"
   "camlzip"
+  "imandrakit"
   "iostream" {>= "0.2"}
   "hmap"
   "pbrt" {>= "3.0"}
@@ -43,3 +44,9 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/imandra-ai/batrpc.git"
+
+pin-depends: [
+  ["moonpool.dev" "git+https://github.com/c-cube/moonpool#main"]
+  ["opentelemetry.dev" "git+https://github.com/imandra-ai/ocaml-opentelemetry#main"]
+  ["imandrakit.dev" "git+https://github.com/imandra-ai/imandrakit#main"]
+]

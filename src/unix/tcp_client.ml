@@ -7,11 +7,11 @@ let connect ?active ?buf_pool ?(middlewares = []) ?(services = [])
     t Error.result =
   let@ () =
     Error.guardf (fun k ->
-        k "Connecting to RPC server on %s" (string_of_sockaddr addr))
+        k "Connecting to RPC server on %s" (Util_sockaddr.show addr))
   in
   let@ () = Error.try_with in
 
-  let kind = Util_.kind_of_sockaddr addr in
+  let kind = Util_sockaddr.kind addr in
   let sock = Unix.socket kind Unix.SOCK_STREAM 0 in
 
   Unix.setsockopt sock Unix.TCP_NODELAY true;

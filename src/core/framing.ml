@@ -188,9 +188,7 @@ let write_with_b_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
 
   let body_str, body_compression =
     if Bytes.length body_str > compression_threshold then
-      let@ _sp =
-        Tracing_.with_span ~__FILE__ ~__LINE__ "framing.compress-body"
-      in
+      let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "framing.compress-body" in
       Util_zlib.compress body_str, Some Meta.Compression_deflate
     else
       body_str, None

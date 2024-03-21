@@ -19,8 +19,8 @@ let services =
   ]
 
 let () =
-  let active = RPC.Simple_switch.create () in
-  let timer = RPC.Simple_timer.create () in
+  let active = Switch.create () in
+  let timer = Timer.create () in
 
   (* we need a thread pool to run the tasks *)
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:8 () in

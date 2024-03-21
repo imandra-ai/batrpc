@@ -284,7 +284,7 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
 
   let send_item item : unit =
     let@ _sp =
-      Tracing_.with_span ~__FILE__ ~__LINE__
+      Trace.with_span ~__FILE__ ~__LINE__
         "bin-rpc.client.send-client-stream-item"
     in
     let meta = Meta.make_meta ~id ~kind:Client_stream_item ~headers () in
@@ -299,7 +299,7 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
 
   let send_close () : unit =
     let@ _sp =
-      Tracing_.with_span ~__FILE__ ~__LINE__
+      Trace.with_span ~__FILE__ ~__LINE__
         "bin-rpc.client.send-client-stream-close"
     in
     let meta = Meta.make_meta ~id ~kind:Client_stream_close ~headers () in

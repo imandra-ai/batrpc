@@ -24,8 +24,7 @@ module Client = struct
       handle =
         (fun rpc (h : _ Handler.t) req ->
           let _sp =
-            Tracing_.enter_span ~__FILE__ ~__LINE__ "rpc-handler"
-              ~data:(fun () ->
+            Trace.enter_span ~__FILE__ ~__LINE__ "rpc-handler" ~data:(fun () ->
                 [
                   "service", `String rpc.service_name;
                   "meth", `String rpc.rpc_name;
@@ -33,7 +32,7 @@ module Client = struct
           in
 
           let fut = h req in
-          Fut.on_result fut (fun _ -> Tracing_.exit_span _sp);
+          Fut.on_result fut (fun _ -> Trace.exit_span _sp);
 
           fut);
     }

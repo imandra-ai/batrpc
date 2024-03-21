@@ -7,7 +7,7 @@ module Fut = Moonpool.Fut
 
 let () =
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
-  let timer = RPC.Simple_timer.create () in
+  let timer = Timer.create () in
 
   Printf.printf "connecting...\n%!";
   let@ runner = Moonpool.Fifo_pool.with_ () in

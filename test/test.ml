@@ -10,7 +10,7 @@ let () =
     | RPC.Error.E e -> Some (RPC.Error.show e)
     | _ -> None)
 
-let timer = RPC.Simple_timer.create ()
+let timer = Timer.create ()
 
 let services =
   [
@@ -204,7 +204,7 @@ let t_with_pipe ~encoding () =
   let@ ic_client, oc_server = RPC.Util_pipe.with_pipe ~close_noerr:true () in
   let@ ic_server, oc_client = RPC.Util_pipe.with_pipe ~close_noerr:true () in
 
-  let active = RPC.Simple_switch.create () in
+  let active = Switch.create () in
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let client : Client.t =
@@ -244,7 +244,7 @@ let log_net_stats () =
 let t_tcp ~encoding ~stress_n () =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main.tcp" in
 
-  let active = RPC.Simple_switch.create () in
+  let active = Switch.create () in
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let with_switch_off_if_fail f =

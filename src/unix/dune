@@ -3,9 +3,6 @@
   (name batrpc_unix)
   (public_name batrpc.unix)
   (synopsis "RPC over unix sockets and pipes.")
-  (flags :standard -open Batrpc_core -open Batrpc_util)
-  (libraries (re_export batrpc.core) threads unix
-             (select time.ml from
-                     (mtime mtime.os.clock -> time.mtime.ml)
-                     (-> time.unix.ml))
-             ))
+  (flags :standard -open Imandrakit -open Imandrakit_thread
+         -open Batrpc_core -open Batrpc_util)
+  (libraries (re_export batrpc.core) containers threads unix))

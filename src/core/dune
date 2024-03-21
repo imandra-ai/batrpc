@@ -2,10 +2,13 @@
  (name batrpc_core)
  (public_name batrpc.core)
  (synopsis "Binary RPC over streams of bytes for protobuf services.")
- (flags :standard -open Batrpc_util)
+ (flags :standard -open Batrpc_util -open Imandrakit -open Imandrakit_thread)
  (libraries
   atomic
   moonpool
+  trace.core
+  imandrakit
+  imandrakit.thread
   batrpc.util
   iostream
   pbrt

@@ -1,0 +1,6 @@
+
+pin-depends: [
+  ["moonpool.dev" "git+https://github.com/c-cube/moonpool#main"]
+  ["opentelemetry.dev" "git+https://github.com/imandra-ai/ocaml-opentelemetry#main"]
+  ["imandrakit.dev" "git+https://github.com/imandra-ai/imandrakit#main"]
+]
