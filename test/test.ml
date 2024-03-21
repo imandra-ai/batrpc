@@ -250,11 +250,11 @@ let t_tcp ~encoding ~stress_n () =
   let with_switch_off_if_fail f =
     try f ()
     with exn ->
-      RPC.Switch.turn_off active;
+      Switch.turn_off active;
       raise exn
   in
 
-  if Trace.enabled () then RPC.Timer.run_every_s timer 0.05 log_net_stats;
+  if Trace.enabled () then Timer.run_every_s timer 0.05 log_net_stats;
 
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
   let server : RPC.Tcp_server.t =
@@ -334,7 +334,7 @@ let t_tcp ~encoding ~stress_n () =
   Thread.join t_stress2;
 
   Trace.message "shutting down";
-  RPC.Switch.turn_off active;
+  Switch.turn_off active;
   ()
 
 let () =

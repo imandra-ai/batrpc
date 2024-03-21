@@ -1,7 +1,5 @@
 (** Errors *)
 
-open Common_
-
 type kind = Error_kind.t =
   | Failure of string
   | Deser_error of string

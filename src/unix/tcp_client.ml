@@ -1,5 +1,3 @@
-open Util_
-
 type t = Rpc_conn.t
 
 let connect ?active ?buf_pool ?(middlewares = []) ?(services = [])

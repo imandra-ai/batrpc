@@ -1,5 +1,3 @@
-open Common_
-
 type t =
   | Failure of string
   | Deser_error of string
