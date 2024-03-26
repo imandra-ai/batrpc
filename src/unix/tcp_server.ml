@@ -25,7 +25,7 @@ let add_middleware self m = Server_state.add_middleware self.st m
 let create ?server_state ?(on_new_client = fun _ _ -> ())
     ?(config_socket = ignore) ?(reuseaddr = true) ?(middlewares = []) ~active
     ~runner ~timer ~services (addr : Unix.sockaddr) : t Error.result =
-  let@ () = Error.try_with in
+  let@ () = Error.try_catch ~kind:Errors.network () in
   let kind = Util_sockaddr.kind addr in
   let sock = Unix.socket kind Unix.SOCK_STREAM 0 in
 
@@ -94,7 +94,9 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
   let encoding =
     match Encoding.of_int32_le magic_number with
     | Some e -> e
-    | None -> Error.failf "Rpc_conn: invalid magic number %ld" magic_number
+    | None ->
+      Error.failf ~kind:Errors.protocol "Rpc_conn: invalid magic number %ld"
+        magic_number
   in
 
   (* spawn a background thread, using the same [active] so as

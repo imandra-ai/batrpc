@@ -35,7 +35,7 @@ let with_logging_error_as_warning_ what f =
   try f ()
   with exn ->
     let bt = Printexc.get_raw_backtrace () in
-    let err = Error.of_exn ~bt exn |> Error.wrap (Error.Network_error "") in
+    let err = Error.of_exn ~bt ~kind:Errors.network exn in
     Log.warn (fun k -> k "Rpc_conn: %s:@ %a" what Error.pp err)
 
 let close_real_ ~join_bg self : unit =

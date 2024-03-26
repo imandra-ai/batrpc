@@ -7,7 +7,7 @@ let connect ?active ?buf_pool ?(middlewares = []) ?(services = [])
     Error.guardf (fun k ->
         k "Connecting to RPC server on %s" (Util_sockaddr.show addr))
   in
-  let@ () = Error.try_with in
+  let@ () = Error.try_catch ~kind:Errors.network () in
 
   let kind = Util_sockaddr.kind addr in
   let sock = Unix.socket kind Unix.SOCK_STREAM 0 in
@@ -46,4 +46,4 @@ let with_connect ?active ?buf_pool ?middlewares ?services ?encoding ~runner
   | Ok c ->
     let finally () = close_and_join c in
     Fun.protect ~finally (fun () -> f c)
-  | Error err -> Error.raise err
+  | Error err -> Error.raise_err err
