@@ -9,8 +9,8 @@ clean:
 test:
 	@dune runtest $(DUNE_OPTS)  --ignore-promoted-rules
 
-lint:
-	@dune build @lint
+genproto:
+	@dune build @genproto
 
 doc:
 	@dune build $(DUNE_OPTS) @doc
