@@ -27,8 +27,13 @@ let () =
 
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
   let server : RPC.Tcp_server.t =
-    RPC.Tcp_server.create ~active ~runner ~timer ~services addr
-    |> RPC.Error.unwrap
+    match RPC.Tcp_server.create ~active ~runner ~timer ~services addr with
+    | Ok s -> s
+    | Error err ->
+      let err =
+        err |> Error.add_ctx (Error.message "Establishing RPC server")
+      in
+      Error.raise_err err
   in
 
   (* background thread to accept connection *)

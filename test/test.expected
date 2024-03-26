@@ -1,26 +1,26 @@
 start tests…
 swap { x = "hello"; y = "world"; artificial_delay_s = None; } =
 { x = "world"; y = "hello"; artificial_delay_s = None; }
-after timeout: Batrpc error:
-timeout
+after timeout: (Error [31;1mError[0m{ Kind.name = "Timeout" }:
+                        Timeout)
 end tests
 listening on port 123456
 start tests…
 swap { x = "hello"; y = "world"; artificial_delay_s = None; } =
 { x = "world"; y = "hello"; artificial_delay_s = None; }
-after timeout: Batrpc error:
-timeout
+after timeout: (Error [31;1mError[0m{ Kind.name = "Timeout" }:
+                        Timeout)
 end tests
 start tests…
 swap { x = "hello"; y = "world"; artificial_delay_s = None; } =
 { x = "world"; y = "hello"; artificial_delay_s = None; }
-after timeout: Batrpc error:
-timeout
+after timeout: (Error [31;1mError[0m{ Kind.name = "Timeout" }:
+                        Timeout)
 end tests
 listening on port 123456
 start tests…
 swap { x = "hello"; y = "world"; artificial_delay_s = None; } =
 { x = "world"; y = "hello"; artificial_delay_s = None; }
-after timeout: Batrpc error:
-timeout
+after timeout: (Error [31;1mError[0m{ Kind.name = "Timeout" }:
+                        Timeout)
 end tests

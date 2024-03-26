@@ -3,13 +3,12 @@ module Client = RPC.Basic_client
 module Fut = Moonpool.Fut
 module Fmt = CCFormat
 
-let ( let@ ) = ( @@ )
-
 let () =
   Printexc.register_printer (function
-    | RPC.Error.E e -> Some (RPC.Error.show e)
+    | Error.E e -> Some (Error.show e)
     | _ -> None)
 
+let ( let@ ) = ( @@ )
 let timer = Timer.create ()
 
 let services =
@@ -85,14 +84,14 @@ let run_tests_on ~client () =
     |> Fut.reify_error
   in
   let p1_swapped =
-    Fut.wait_block_exn fut_p1_swapped |> RPC.Error.result_of_fut_or_error
+    Fut.wait_block_exn fut_p1_swapped
+    |> Result.map_error (fun (e, bt) ->
+           Error.of_exn ~bt ~kind:Error_kind.generic_internal_error e)
   in
-  Fmt.printf "after timeout: %a@."
-    (RPC.Error.pp_result Trivial.pp_pair)
-    p1_swapped;
+  Fmt.printf "after timeout: %a@." (Error.pp_result Trivial.pp_pair) p1_swapped;
   assert (
     match p1_swapped with
-    | Error err -> err.kind = RPC.Error_kind.Timeout
+    | Error err -> Error_kind.equal err.kind Error_kind.timeout
     | _ -> false);
 
   (* test out of order *)
@@ -258,8 +257,7 @@ let t_tcp ~encoding ~stress_n () =
 
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
   let server : RPC.Tcp_server.t =
-    RPC.Tcp_server.create ~active ~runner ~timer ~services addr
-    |> RPC.Error.unwrap
+    RPC.Tcp_server.create ~active ~runner ~timer ~services addr |> Error.unwrap
   in
 
   (* background thread to accept connection *)
@@ -277,7 +275,7 @@ let t_tcp ~encoding ~stress_n () =
   let with_client f =
     let client : Client.t =
       RPC.Tcp_client.connect ~encoding ~active ~runner ~timer addr
-      |> RPC.Error.unwrap
+      |> Error.unwrap
     in
     let@ () =
       Fun.protect ~finally:(fun () ->
@@ -351,6 +349,6 @@ let () =
      t_with_pipe ~encoding:RPC.Encoding.Json ();
      t_tcp ~encoding:RPC.Encoding.Json ~stress_n:100 ());
     Trace.message "end main"
-  with RPC.Error.E err ->
-    Fmt.printf "error: %a@." RPC.Error.pp err;
+  with Error.E err ->
+    Fmt.printf "error: %a@." Error.pp err;
     exit 1
