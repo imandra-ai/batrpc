@@ -3,14 +3,13 @@ module Client = RPC.Basic_client
 module Fut = Moonpool.Fut
 module Fmt = CCFormat
 
-let ( let@ ) = ( @@ )
-
 let () =
   Printexc.register_printer (function
-    | RPC.Error.E e -> Some (RPC.Error.show e)
+    | Error.E e -> Some (Error.show e)
     | _ -> None)
 
-let timer = RPC.Simple_timer.create ()
+let ( let@ ) = ( @@ )
+let timer = Timer.create ()
 
 let services =
   [
@@ -85,14 +84,14 @@ let run_tests_on ~client () =
     |> Fut.reify_error
   in
   let p1_swapped =
-    Fut.wait_block_exn fut_p1_swapped |> RPC.Error.result_of_fut_or_error
+    Fut.wait_block_exn fut_p1_swapped
+    |> Result.map_error (fun (e, bt) ->
+           Error.of_exn ~bt ~kind:Error_kind.generic_internal_error e)
   in
-  Fmt.printf "after timeout: %a@."
-    (RPC.Error.pp_result Trivial.pp_pair)
-    p1_swapped;
+  Fmt.printf "after timeout: %a@." (Error.pp_result Trivial.pp_pair) p1_swapped;
   assert (
     match p1_swapped with
-    | Error err -> err.kind = RPC.Error_kind.Timeout
+    | Error err -> Error_kind.equal err.kind Error_kind.timeout
     | _ -> false);
 
   (* test out of order *)
@@ -204,7 +203,7 @@ let t_with_pipe ~encoding () =
   let@ ic_client, oc_server = RPC.Util_pipe.with_pipe ~close_noerr:true () in
   let@ ic_server, oc_client = RPC.Util_pipe.with_pipe ~close_noerr:true () in
 
-  let active = RPC.Simple_switch.create () in
+  let active = Switch.create () in
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let client : Client.t =
@@ -244,22 +243,21 @@ let log_net_stats () =
 let t_tcp ~encoding ~stress_n () =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main.tcp" in
 
-  let active = RPC.Simple_switch.create () in
+  let active = Switch.create () in
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let with_switch_off_if_fail f =
     try f ()
     with exn ->
-      RPC.Switch.turn_off active;
+      Switch.turn_off active;
       raise exn
   in
 
-  if Trace.enabled () then RPC.Timer.run_every_s timer 0.05 log_net_stats;
+  if Trace.enabled () then Timer.run_every_s timer 0.05 log_net_stats;
 
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
   let server : RPC.Tcp_server.t =
-    RPC.Tcp_server.create ~active ~runner ~timer ~services addr
-    |> RPC.Error.unwrap
+    RPC.Tcp_server.create ~active ~runner ~timer ~services addr |> Error.unwrap
   in
 
   (* background thread to accept connection *)
@@ -277,7 +275,7 @@ let t_tcp ~encoding ~stress_n () =
   let with_client f =
     let client : Client.t =
       RPC.Tcp_client.connect ~encoding ~active ~runner ~timer addr
-      |> RPC.Error.unwrap
+      |> Error.unwrap
     in
     let@ () =
       Fun.protect ~finally:(fun () ->
@@ -334,7 +332,7 @@ let t_tcp ~encoding ~stress_n () =
   Thread.join t_stress2;
 
   Trace.message "shutting down";
-  RPC.Switch.turn_off active;
+  Switch.turn_off active;
   ()
 
 let () =
@@ -351,6 +349,6 @@ let () =
      t_with_pipe ~encoding:RPC.Encoding.Json ();
      t_tcp ~encoding:RPC.Encoding.Json ~stress_n:100 ());
     Trace.message "end main"
-  with RPC.Error.E err ->
-    Fmt.printf "error: %a@." RPC.Error.pp err;
+  with Error.E err ->
+    Fmt.printf "error: %a@." Error.pp err;
     exit 1

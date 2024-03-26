@@ -2,15 +2,12 @@
  (name batrpc_util)
  (public_name batrpc.util)
  (synopsis "Utils for batrpc")
- (private_modules common_util_)
  (libraries
   atomic
   logs
   camlzip
-  threads
-  (select
-   tracing_.ml
-   from
-   (trace.core -> tracing_.real.ml)
-   (-> tracing_.dummy.ml)))
+  imandrakit
+  imandrakit.thread
+  trace.core
+  threads)
  (flags :standard))

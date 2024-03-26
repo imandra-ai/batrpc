@@ -147,9 +147,7 @@ let[@inline] apply_middleware ~service_name rpc (h : _ Handler.t)
 
 let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     ~encoding () : unit =
-  let@ _sp =
-    Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-req"
-  in
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-req" in
   assert (meta.kind = Meta.Request);
 
   let compute_res_and_reply rpc (f : _ Handler.t) (ctx, req) : unit =
@@ -159,7 +157,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       | Ok res ->
         send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc (Ok res)
       | Error (exn, bt) ->
-        let res = Error (Error.of_exn ~bt exn) in
+        let res = Error (Error.of_exn ~kind:Errors.handler ~bt exn) in
         send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc res)
   in
 
@@ -167,7 +165,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     let bt = Printexc.get_callstack 5 in
 
     let@ _sp =
-      Tracing_.with_span ~__FILE__ ~__LINE__
+      Trace.with_span ~__FILE__ ~__LINE__
         "bin-rpc.server.call-server-stream-handler"
     in
 
@@ -175,21 +173,24 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       f req push_stream;
       Push_stream.close push_stream
     with exn ->
-      let err = Error.of_exn ~bt exn in
+      let err = Error.of_exn ~kind:Errors.handler ~bt exn in
       send_error ~buf_pool ~meta ~oc ~encoding err
   in
 
   let res : unit Error.result =
+    let@ () = Error.try_catch ~kind:Errors.handler () in
     let@ () = Error.guards "Handling RPC request" in
-    let@ () = Error.try_with in
 
     let meth_name =
-      meta.meth |> Error.unwrap_opt "expected method to be present"
+      match meta.meth with
+      | Some m -> m
+      | None -> Error.fail ~kind:Errors.protocol "expected method to be present"
     in
     Log.debug (fun k -> k "(@[server.handle-req@ :method %S@])" meth_name);
 
     match find_meth self meth_name with
-    | None -> Error.failf "method not found: %S." meth_name
+    | None ->
+      Error.failf ~kind:Errors.protocol "method not found: %S." meth_name
     | Some (service_name, Handler { h = Unary initial_handler; rpc }) ->
       (* read request here, but process it in the background *)
       let req = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in
@@ -245,7 +246,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
           compute_stream_response f ~push_stream (ctx, req))
     | Some (_, Handler { rpc = _; h = Bidirectional_stream _ }) ->
       (* FIXME: handle bidirectional streams *)
-      Error.failf "Cannot handle method %S." meth_name
+      Error.failf ~kind:Errors.handler "Cannot handle method %S." meth_name
   in
 
   send_nothing_or_error ~buf_pool ~oc ~encoding ~meta res
@@ -258,7 +259,7 @@ let remove_stream_ (self : t) (id : int32) : unit =
 let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     ~encoding () : unit =
   let@ _sp =
-    Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-close"
+    Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-close"
   in
   assert (meta.kind = Meta.Client_stream_close);
   Framing.read_empty ~buf_pool ~encoding ic ~meta;
@@ -276,10 +277,10 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
 
     let res : _ Handler.with_ctx Error.result =
       let@ _sp =
-        Tracing_.with_span ~__FILE__ ~__LINE__
+        Trace.with_span ~__FILE__ ~__LINE__
           "bin-rpc.server.call-stream.on-close"
       in
-      let@ () = Error.try_with in
+      let@ () = Error.try_catch ~kind:Errors.handler () in
       handler.on_close state
     in
 
@@ -288,17 +289,16 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
 let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     ~encoding () : unit =
   let@ _sp =
-    Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-item"
+    Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-item"
   in
   assert (meta.kind = Meta.Client_stream_item);
 
   let call_handler_ state f item : unit =
     (* call handler now *)
     let res : unit Error.result =
-      let@ () = Error.try_with in
+      let@ () = Error.try_catch ~kind:Errors.handler () in
       let@ _sp =
-        Tracing_.with_span ~__FILE__ ~__LINE__
-          "bin-rpc.server.call-stream.on-item"
+        Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.call-stream.on-item"
       in
 
       f state item
@@ -308,12 +308,13 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
   in
 
   let res : unit Error.result =
-    let@ () = Error.try_with in
+    let@ () = Error.try_catch ~kind:Errors.handler () in
     match
       let@ self = Lock.with_lock self.st in
       Int32_tbl.find_opt self.streams meta.id
     with
-    | None -> Error.failf "No stream with id=%ld found." meta.id
+    | None ->
+      Error.failf ~kind:Errors.protocol "No stream with id=%ld found." meta.id
     | Some (Str_client_stream { state; rpc; handler }) ->
       (* read item here, but process it in the background *)
       let item = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in

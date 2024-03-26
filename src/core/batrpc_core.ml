@@ -2,8 +2,7 @@ module Basic_client = Basic_client
 module Buf_pool = Buf_pool
 module Client_state = Client_state
 module Encoding = Encoding
-module Error = Error
-module Error_kind = Error_kind
+module Errors = Errors
 module Framing = Framing
 module Handler = Handler
 module Io = Io
@@ -14,8 +13,6 @@ module Rpc_conn = Rpc_conn
 module Server_for_client = Server_for_client
 module Server_handler = Server_handler
 module Server_state = Server_state
-module Switch = Switch
-module Timer = Timer
 
 (** {2 Re-exports} *)
 

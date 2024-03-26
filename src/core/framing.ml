@@ -10,21 +10,21 @@ open struct
 
   let unwrap_body_size = function
     | Some i -> i
-    | None -> Error.raise_err (Error.Deser_error "missing body_size")
+    | None -> Error.fail ~kind:Errors.protocol "missing body_size"
 
   let decode_json_ decode (str : string) =
     match Yojson.Basic.from_string str with
     | j ->
       (try decode j
        with Pbrt_yojson.E.Failure err ->
-         let msg = spf "could not decode json: %s" @@ string_of_error err in
-         Error.raise_err (Error.Deser_error msg))
-    | exception _ -> Error.raise_err (Error.Deser_error "invalid json")
+         Error.failf ~kind:Errors.deser "could not decode json: %s"
+         @@ string_of_error err)
+    | exception _ -> Error.fail ~kind:Errors.deser "invalid json"
 
   let read_line_exn_ (ic : #Io.In.t) : string =
     match Io.In.input_line ic with
     | Some s -> s
-    | None -> Error.raise_err (Error.Network_error "Could not read next line")
+    | None -> Error.fail ~kind:Errors.network "Could not read next line"
 end
 
 (** Size of body above which we apply zlib compression. *)
@@ -56,6 +56,7 @@ let read_meta ~buf_pool ic ~encoding : _ option =
   | Encoding.Json -> read_meta_j ic
 
 let read_with_dec_ ~buf_pool ic ~(meta : Meta.meta) ~what ~f_dec =
+  let@ () = Error.guardf (fun k -> k "Reading body of %s" what) in
   let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
   let@ buf = Buf_pool.with_buf buf_pool body_size in
   Io.In.really_input ic buf 0 body_size;
@@ -73,14 +74,12 @@ let read_with_dec_ ~buf_pool ic ~(meta : Meta.meta) ~what ~f_dec =
   try f_dec dec
   with Pbrt.Decoder.Failure err ->
     let err = Pbrt.Decoder.error_to_string err in
-    let ctx = Error.(mk @@ Deser_error err) in
-    Error.(failf ~ctx "Reading body of %s failed" what)
+    Error.fail ~kind:Errors.deser err
 
 let read_with_dec_j_ (ic : #Io.In.t) ~what ~f_dec =
-  try
-    let line = read_line_exn_ ic in
-    decode_json_ f_dec line
-  with Error.E err -> Error.(failf ~ctx:err "Reading body of %s failed" what)
+  let@ () = Error.guardf (fun k -> k "Reading JSON body of %s" what) in
+  let line = read_line_exn_ ic in
+  decode_json_ f_dec line
 
 let read_body_req ~buf_pool (ic : #Io.In.t) ~encoding ~(meta : Meta.meta)
     (rpc : _ Service.Server.rpc) =
@@ -154,14 +153,11 @@ let write_meta_b ~enc oc meta : unit =
   let buf = Pbrt.Encoder.to_bytes enc in
 
   (* size of [m] has to fit in a [u16] *)
-  if Bytes.length buf >= 1 lsl 16 then (
-    let msg =
-      spf "Batrpc: cannot send message with Metadata of size %d (max size=%d)."
-        (Bytes.length buf)
-        ((1 lsl 16) - 1)
-    in
-    Error.raise_err (Network_error msg)
-  );
+  if Bytes.length buf >= 1 lsl 16 then
+    Error.failf ~kind:Errors.network
+      "Batrpc: cannot send message with Metadata of size %d (max size=%d)."
+      (Bytes.length buf)
+      ((1 lsl 16) - 1);
 
   (* Trace.messagef (fun k -> k "write meta: size=%d" (Bytes.length buf)); *)
 
@@ -188,9 +184,7 @@ let write_with_b_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
 
   let body_str, body_compression =
     if Bytes.length body_str > compression_threshold then
-      let@ _sp =
-        Tracing_.with_span ~__FILE__ ~__LINE__ "framing.compress-body"
-      in
+      let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "framing.compress-body" in
       Util_zlib.compress body_str, Some Meta.Compression_deflate
     else
       body_str, None

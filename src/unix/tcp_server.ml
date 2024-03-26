@@ -25,8 +25,8 @@ let add_middleware self m = Server_state.add_middleware self.st m
 let create ?server_state ?(on_new_client = fun _ _ -> ())
     ?(config_socket = ignore) ?(reuseaddr = true) ?(middlewares = []) ~active
     ~runner ~timer ~services (addr : Unix.sockaddr) : t Error.result =
-  let@ () = Error.try_with in
-  let kind = Util_.kind_of_sockaddr addr in
+  let@ () = Error.try_catch ~kind:Errors.network () in
+  let kind = Util_sockaddr.kind addr in
   let sock = Unix.socket kind Unix.SOCK_STREAM 0 in
 
   Unix.setsockopt sock Unix.SO_REUSEADDR true;
@@ -94,7 +94,9 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
   let encoding =
     match Encoding.of_int32_le magic_number with
     | Some e -> e
-    | None -> Error.failf "Rpc_conn: invalid magic number %ld" magic_number
+    | None ->
+      Error.failf ~kind:Errors.protocol "Rpc_conn: invalid magic number %ld"
+        magic_number
   in
 
   (* spawn a background thread, using the same [active] so as
@@ -114,7 +116,7 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
   ()
 
 let run (self : t) : unit =
-  let@ _sp = Tracing_.with_span ~__FILE__ ~__LINE__ "bin-rpc.tcp-server.run" in
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.tcp-server.run" in
 
   let wait_for_client_or_timeout () : bool =
     match Unix.select [ self.sock ] [] [] 1.0 with
@@ -131,7 +133,7 @@ let run (self : t) : unit =
 
         Log_rpc.debug (fun k ->
             k "(@[tcp-server.run.accept-client@ :on %s@])"
-              (Util_.string_of_sockaddr client_addr));
+              (Util_sockaddr.show client_addr));
 
         handle_client_async_ self client_sock client_addr
       | exception Sys_error msg ->

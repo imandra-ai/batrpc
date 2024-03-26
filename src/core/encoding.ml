@@ -37,4 +37,6 @@ let read_from_ic (ic : #Io.In.t) : t =
 
   match of_int32_le magic_number with
   | Some e -> e
-  | None -> Error.failf "Batrpc: read invalid magic number %ld" magic_number
+  | None ->
+    Error.failf ~kind:Errors.deser "Batrpc: read invalid magic number %ld"
+      magic_number

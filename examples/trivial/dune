@@ -3,13 +3,13 @@
 (executable
   (name client)
   (modules client)
-  (flags :standard -w -32-44 -open Trivial)
+  (flags :standard -w -32-44 -open Trivial -open Imandrakit -open Imandrakit_thread)
   (libraries moonpool trivial containers trace trace-tef batrpc))
 
 (executable
   (name server)
   (modules server)
-  (flags :standard -w -32-44 -open Trivial)
+  (flags :standard -w -32-44 -open Trivial -open Imandrakit -open Imandrakit_thread)
   (libraries moonpool trivial containers trace trace-tef batrpc))
 
 (library
@@ -21,7 +21,7 @@
 (rule
  (targets trivial.ml trivial.mli)
  (deps trivial.proto)
- (alias lint)
+ (alias genproto)
  (mode promote)
  (action
   (run ocaml-protoc --binary --pp --yojson --services --make --ml_out ./ %{deps})))

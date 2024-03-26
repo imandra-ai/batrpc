@@ -18,15 +18,13 @@ jobs:
               #- macos-latest
               #- windows-latest
         ocaml-compiler:
-            - '4.12'
-            - '4.14'
             - '5.1'
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@main
         with:
-          submodules:
+          submodules: true
     
       - name: Use OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
@@ -43,7 +41,7 @@ jobs:
       - run: opam exec -- dune build @install @runtest --ignore-promoted-rules
 
       - run: opam install ocaml-protoc
-      - run: opam exec -- dune build @lint
+      - run: opam exec -- dune build @genproto
 
       # check that nothing changed
       - run: git diff --exit-code

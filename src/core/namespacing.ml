@@ -1,5 +1,3 @@
-open Common_
-
 let service_prefix package service_name : string =
   let prefix = String.concat "." package in
   if prefix = "" then

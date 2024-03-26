@@ -7,12 +7,20 @@ module Fut = Moonpool.Fut
 
 let () =
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, port) in
-  let timer = RPC.Simple_timer.create () in
+  let timer = Timer.create () in
 
   Printf.printf "connecting...\n%!";
   let@ runner = Moonpool.Fifo_pool.with_ () in
   let client : Client.t =
-    RPC.Tcp_client.connect ~timer ~runner addr |> RPC.Error.unwrap
+    match RPC.Tcp_client.connect ~timer ~runner addr with
+    | Ok c -> c
+    | Error err ->
+      let err =
+        Error.add_ctx
+          (Error.messagef "RPC: connecting to %a" Util_sockaddr.pp addr)
+          err
+      in
+      Error.raise_err err
   in
   let@ () = Fun.protect ~finally:(fun () -> Client.close_and_join client) in
 
