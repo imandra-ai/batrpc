@@ -19,7 +19,8 @@ In addition, some concurrency and parallelism primitives are provided:
     On OCaml 5 (meaning there's actual domains and effects, not just threads),
     a `Fut.await` primitive is provided. It's simpler and more powerful
     than the monadic combinators.
-- `Moonpool.Fork_join` provides the fork-join parallelism primitives
+- `Moonpool_forkjoin`, in the library `moonpool.forkjoin`
+    provides the fork-join parallelism primitives
     to use within tasks running in the pool.
 
 ## Usage
@@ -164,15 +165,70 @@ val expected_sum : int = 5050
 - : unit = ()
 ```
 
+### Errors
+
+We have a `Exn_bt.t` type that comes in handy in many places. It bundles together
+an exception and the backtrace associated with the place the exception was caught.
+
+### Fibers
+
+On OCaml 5, Moonpool comes with a library `moonpool.fib` (module `Moonpool_fib`)
+which provides _lightweight fibers_
+that can run on any Moonpool runner.
+These fibers are a sort of lightweight thread, dispatched on the runner's
+background thread(s).
+Fibers rely on effects to implement `Fiber.await`, suspending themselves until the `await`-ed fiber
+is done.
+
+```ocaml
+# #require "moonpool.fib";;
+
+# (* convenient alias *)
+  module F = Moonpool_fib;;
+module F = Moonpool_fib
+# F.main (fun _runner ->
+    let f1 = F.spawn (fun () -> fib 10) in
+    let f2 = F.spawn (fun () -> fib 15) in
+    F.await f1 + F.await f2);;
+- : int = 1076
+```
+
+Fibers form a _tree_, where a fiber calling `Fiber.spawn` to start a sub-fiber is
+the sub-fiber's _parent_.
+When a parent fails, all its children are cancelled (forced to fail).
+This is a simple form of [Structured Concurrency](https://en.wikipedia.org/wiki/Structured_concurrency).
+
+Like a future, a fiber eventually _resolves_ into a value (or an `Exn_bt.t`) that it's possible
+to `await`. With `Fiber.res : 'a Fiber.t -> 'a Fut.t` it's possible to access that result
+as a regular future, too.
+However, this resolution is only done after all the children of the fiber have
+resolved — the lifetime of fibers forms a well-nested tree in that sense.
+
+When a fiber is suspended because it `await`s another fiber (or future), the scheduler's
+thread on which it was running becomes available again and can go on process another task.
+When the fiber resumes, it will automatically be re-scheduled on the same runner it started on.
+This means fibers on pool P1 can await fibers from pool P2 and still be resumed on P1.
+
+In addition to all that, fibers provide _fiber local storage_ (like thread-local storage, but per fiber).
+This storage is inherited in `spawn` (as a shallow copy only — it's advisable to only
+put persistent data in storage to avoid confusing aliasing).
+The storage is convenient for carrying around context for cross-cutting concerns such
+as logging or tracing (e.g. a log tag for the current user or request ID, or a tracing
+scope).
+
 ### Fork-join
 
-On OCaml 5, again using effect handlers, the module `Fork_join`
+On OCaml 5, again using effect handlers, the sublibrary `moonpool.forkjoin`
+provides a module `Moonpool_forkjoin`
 implements the [fork-join model](https://en.wikipedia.org/wiki/Fork%E2%80%93join_model).
-It must run on a pool (using [Runner.run_async] or inside a future via [Fut.spawn]).
+It must run on a pool (using `Runner.run_async` or inside a future via `Fut.spawn`).
 
 It is generally better to use the work-stealing pool for workloads that rely on
 fork-join for better performance, because fork-join will tend to spawn lots of
 shorter tasks.
+
+Here is an simple example of a parallel sort.
+It uses selection sort for small slices, like this:
 
 ```ocaml
 # let rec select_sort arr i len =
@@ -187,7 +243,11 @@ shorter tasks.
       select_sort arr (i+1) (len-1)
     );;
 val select_sort : 'a array -> int -> int -> unit = <fun>
+```
 
+And a parallel quicksort for larger slices:
+
+```ocaml
 # let rec quicksort arr i len : unit =
     if len <= 10 then select_sort arr i len
     else (
@@ -195,6 +255,7 @@ val select_sort : 'a array -> int -> int -> unit = <fun>
       let low = ref (i - 1) in
       let high = ref (i + len) in
 
+      (* partition the array slice *)
       while !low < !high do
         incr low;
         decr high;
@@ -211,7 +272,8 @@ val select_sort : 'a array -> int -> int -> unit = <fun>
         )
       done;
 
-      Moonpool.Fork_join.both_ignore
+      (* sort lower half and upper half in parallel *)
+      Moonpool_forkjoin.both_ignore
         (fun () -> quicksort arr i (!low - i))
         (fun () -> quicksort arr !low (len - (!low - i)))
     );;
@@ -237,8 +299,8 @@ val arr : int array =
     142; 255; 72; 85; 95; 93; 73; 202|]
 # Moonpool.Fut.spawn ~on:pool
     (fun () -> quicksort arr 0 (Array.length arr))
-    |> Moonpool.Fut.wait_block_exn
-    ;;
+  |> Moonpool.Fut.wait_block_exn
+  ;;
 - : unit = ()
 # arr;;
 - : int array =
@@ -246,6 +308,12 @@ val arr : int array =
   106; 109; 111; 121; 126; 132; 135; 142; 147; 161; 182; 186; 192; 196; 202;
   204; 220; 231; 243; 247; 255|]
 ```
+
+Note that the sort had to be started in a task (via `Moonpool.Fut.spawn`)
+so that fork-join would run on the thread pool.
+This is necessary even for the initial iteration because fork-join
+relies on OCaml 5's effects, meaning that the computation needs to run
+inside an effect handler provided by the thread pool.
 
 ### More intuition
 
@@ -267,11 +335,14 @@ You are assuming that, if pool P1 has 5000 tasks, and pool P2 has 10 other tasks
 This works for OCaml >= 4.08.
 - On OCaml 4.xx, there are no domains, so this is just a library for regular thread pools
     with not actual parallelism (except for threads that call C code that releases the runtime lock, that is).
+    C calls that do release the runtime lock (e.g. to call [Z3](https://github.com/Z3Prover/z3), hash a file, etc.)
+    will still run in parallel.
 - on OCaml 5.xx, there is a fixed pool of domains (using the recommended domain count).
-    These domains do not do much by themselves, but we schedule new threads on them, and group
-    threads from each domain into pools.
+    These domains do not do much by themselves, but we schedule new threads on them, and form pools
+    of threads that contain threads from each domain.
     Each domain might thus have multiple threads that belong to distinct pools (and several threads from
-    the same pool, too — this is useful for threads blocking on IO).
+    the same pool, too — this is useful for threads blocking on IO); Each pool will have threads
+    running on distinct domains, which enables parallelism.
 
     A useful analogy is that each domain is a bit like a CPU core, and `Thread.t` is a logical thread running on a core.
     Multiple threads have to share a single core and do not run in parallel on it[^2].
@@ -290,4 +361,4 @@ MIT license.
 $ opam install moonpool
 ```
 
-[^2]: let's not talk about hyperthreading.
+[^2]: ignoring hyperthreading for the sake of the analogy.
