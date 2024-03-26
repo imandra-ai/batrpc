@@ -1,5 +1,5 @@
 module RPC = Batrpc
-module Client = RPC.Basic_client
+module Client = RPC.Client
 module Fut = Moonpool.Fut
 module Fmt = CCFormat
 
@@ -204,27 +204,27 @@ let t_with_pipe ~encoding () =
   let@ ic_server, oc_client = RPC.Util_pipe.with_pipe ~close_noerr:true () in
 
   let active = Switch.create () in
-  let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let client : Client.t =
-    Client.create ~active ~runner ~timer ~encoding ~ic:ic_client ~oc:oc_client
-      ()
+    Client.create ~active ~timer ~encoding ~ic:ic_client ~oc:oc_client ()
   in
+
   let@ () =
     Fun.protect ~finally:(fun () ->
         let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "client.close" in
-        Client.close_and_join client;
-        Moonpool.Runner.shutdown runner)
+        Client.close_and_join client)
   in
 
   (* thread for server *)
-  let server : RPC.Server_for_client.t =
+  let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
+  let server : RPC.Server.For_client.t =
     let encoding = RPC.Encoding.read_from_ic ic_server in
-    RPC.Server_for_client.create (* ~active *)
-      ~runner ~timer ~services ~encoding ~ic:ic_server ~oc:oc_server ()
+    let state = RPC.Server.State.create ~services () in
+    RPC.Server.For_client.create ~active ~runner ~timer ~state ~encoding
+      ~ic:ic_server ~oc:oc_server ()
   in
   let@ () =
-    Fun.protect ~finally:(fun () -> RPC.Server_for_client.close server)
+    Fun.protect ~finally:(fun () -> RPC.Server.For_client.close server)
   in
 
   run_tests_on ~client ();
@@ -274,8 +274,7 @@ let t_tcp ~encoding ~stress_n () =
 
   let with_client f =
     let client : Client.t =
-      RPC.Tcp_client.connect ~encoding ~active ~runner ~timer addr
-      |> Error.unwrap
+      RPC.Tcp_client.connect ~encoding ~active ~timer addr |> Error.unwrap
     in
     let@ () =
       Fun.protect ~finally:(fun () ->

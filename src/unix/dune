@@ -5,4 +5,5 @@
   (synopsis "RPC over unix sockets and pipes.")
   (flags :standard -open Imandrakit -open Imandrakit_thread
          -open Batrpc_core -open Batrpc_util)
-  (libraries (re_export batrpc.core) containers threads unix))
+  (libraries (re_export batrpc.core) batrpc.client batrpc.server
+             containers threads unix))

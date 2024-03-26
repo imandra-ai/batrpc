@@ -59,12 +59,12 @@ val mk_server_stream_handler :
    is closed by the handler. *)
 
 val create :
-  ?middlewares:Middleware.Server.t list ->
+  ?middlewares:Middleware.t list ->
   services:handler Service.Server.t list ->
   unit ->
   t
 
-val add_middleware : t -> Middleware.Server.t -> unit
+val add_middleware : t -> Middleware.t -> unit
 val add_service : t -> handler Service.Server.t -> unit
 val list_services : t -> handler Service.Server.t list
 val find_meth : t -> string -> (string * handler) option

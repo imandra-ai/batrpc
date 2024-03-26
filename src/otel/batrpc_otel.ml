@@ -67,11 +67,11 @@ let k_span_ctx : Otel.Span_ctx.t Hmap.key = Otel.k_span_ctx
 
 module Server = struct
   (** Middleware that instruments request handlers *)
-  let trace_ : Middleware.Server.t =
+  let trace_ : Server.Middleware.t =
     {
       handle =
-        (fun ~service_name rpc handler ((ctx, req) : _ Server_handler.with_ctx)
-             : _ Server_handler.with_ctx Fut.t ->
+        (fun ~service_name rpc handler ((ctx, req) : _ Server.with_ctx) :
+             _ Server.with_ctx Fut.t ->
           let trace_id, parent_id =
             match get_span_ctx ctx.headers with
             | None -> None, None

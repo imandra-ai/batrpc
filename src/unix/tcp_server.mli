@@ -3,20 +3,24 @@
     The server will spawn a thread per client connection, and use
     an executor to handle individual requests from each client. *)
 
-open Util_
+module Server = Batrpc_server
+
+type conn = Server.For_client.t
+(** A single connection to a client *)
 
 type t
+(** The server itself *)
 
 val create :
-  ?server_state:Server_state.t ->
-  ?on_new_client:(Rpc_conn.t -> Unix.sockaddr -> unit) ->
+  ?server_state:Server.State.t ->
+  ?on_new_client:(conn -> Unix.sockaddr -> unit) ->
   ?config_socket:(Unix.file_descr -> unit) ->
   ?reuseaddr:bool ->
-  ?middlewares:Middleware.Server.t list ->
+  ?middlewares:Server.Middleware.t list ->
   active:Switch.t ->
   runner:Runner.t ->
   timer:Timer.t ->
-  services:Server_state.handler Service.Server.t list ->
+  services:Server.State.handler Service.Server.t list ->
   Unix.sockaddr ->
   t Error.result
 (** Create and bind the TCP server.
@@ -24,7 +28,7 @@ val create :
     @param config_socket custom function to set options on server socket
       before it's used, but after basic options and [reuseaddr] have been set. *)
 
-val add_middleware : t -> Middleware.Server.t -> unit
+val add_middleware : t -> Server.Middleware.t -> unit
 val active : t -> Switch.t
 
 val run : t -> unit

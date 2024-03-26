@@ -1,0 +1,19 @@
+
+(library
+ (name batrpc_client)
+ (public_name batrpc.client)
+ (synopsis "Client side of the RPC.")
+ (private_modules common_)
+ (flags :standard -open Batrpc_core -open Imandrakit -open Imandrakit_thread)
+ (libraries
+  trace.core
+  imandrakit
+  imandrakit.thread
+  batrpc.util
+  batrpc.core
+  iostream
+  pbrt
+  pbrt_yojson
+  hmap
+  yojson
+  pbrt_services))

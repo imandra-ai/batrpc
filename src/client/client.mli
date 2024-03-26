@@ -1,10 +1,4 @@
-(** RPC over a given connection (pair of channels).
-
-    This is a stateful connection between two client/server
-    instances, exchanging messages over a bidirectional stream of bytes.
-
-    Each side can act both as a client and server.
-*)
+(** Basic client that doesn't have a server component *)
 
 open Common_
 
@@ -14,16 +8,12 @@ type t
 val create :
   ?buf_pool:Buf_pool.t ->
   ?active:Switch.t ->
-  ?server_state:Server_state.t ->
   encoding:Encoding.t ->
-  runner:Runner.t ->
   timer:Timer.t ->
   ic:#Io.In.t ->
   oc:#Io.Out.t ->
   unit ->
   t
-
-type handler = Server_state.handler
 
 val close_and_join : t -> unit
 (** [close_and_join rpc] closes the connection and waits for the
@@ -33,17 +23,10 @@ val close_without_joining : t -> unit
 (** [close_without_joining rpc] closes the connection
     but immediately returns. *)
 
-val runner : t -> Moonpool.Runner.t
 val active : t -> Switch.t option
 
-val server_state : t -> Server_state.t
-(** State for the server end of this connection *)
-
-val client_state : t -> Client_state.t
+val state : t -> State.t
 (** State for the client end of this connection *)
-
-val add_service : t -> handler Service.Server.t -> unit
-(** Add some server-side service to this connection *)
 
 val on_close : t -> unit Fut.t
 (** Future to wait for this to close *)

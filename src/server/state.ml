@@ -32,7 +32,7 @@ type stream_handler =
       -> stream_handler
 
 type state = {
-  mutable middlewares: Middleware.Server.t list;
+  mutable middlewares: Middleware.t list;
   mutable services: handler Service.Server.t list;
   streams: stream_handler Int32_tbl.t;  (** Handlers for incoming streams *)
   meths: (string * handler) Str_tbl.t;
@@ -142,12 +142,12 @@ let send_stream_close ~buf_pool ~oc ~encoding ~(meta : Meta.meta) () : unit =
   oc#flush ()
 
 let[@inline] apply_middleware ~service_name rpc (h : _ Handler.t)
-    (m : Middleware.Server.t) : _ Handler.t =
+    (m : Middleware.t) : _ Handler.t =
   m.handle ~service_name rpc h
 
 let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     ~encoding () : unit =
-  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-req" in
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.handle-req" in
   assert (meta.kind = Meta.Request);
 
   let compute_res_and_reply rpc (f : _ Handler.t) (ctx, req) : unit =
@@ -166,7 +166,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
 
     let@ _sp =
       Trace.with_span ~__FILE__ ~__LINE__
-        "bin-rpc.server.call-server-stream-handler"
+        "rpc.server.call-server-stream-handler"
     in
 
     try
@@ -259,7 +259,7 @@ let remove_stream_ (self : t) (id : int32) : unit =
 let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     ~encoding () : unit =
   let@ _sp =
-    Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-close"
+    Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.handle-stream-close"
   in
   assert (meta.kind = Meta.Client_stream_close);
   Framing.read_empty ~buf_pool ~encoding ic ~meta;
@@ -277,8 +277,7 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
 
     let res : _ Handler.with_ctx Error.result =
       let@ _sp =
-        Trace.with_span ~__FILE__ ~__LINE__
-          "bin-rpc.server.call-stream.on-close"
+        Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.call-stream.on-close"
       in
       let@ () = Error.try_catch ~kind:Errors.handler () in
       handler.on_close state
@@ -289,7 +288,7 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
 let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     ~encoding () : unit =
   let@ _sp =
-    Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.handle-stream-item"
+    Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.handle-stream-item"
   in
   assert (meta.kind = Meta.Client_stream_item);
 
@@ -298,7 +297,7 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     let res : unit Error.result =
       let@ () = Error.try_catch ~kind:Errors.handler () in
       let@ _sp =
-        Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.server.call-stream.on-item"
+        Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.call-stream.on-item"
       in
 
       f state item

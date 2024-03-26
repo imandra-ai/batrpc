@@ -1,5 +1,4 @@
 open Common_
-module Push_stream = Push_stream
 
 type 'a with_ctx = Handler.ctx * 'a
 
@@ -7,10 +6,10 @@ type t
 (** Client-side state. This tracks the state of
     in-flight requests and active streams. *)
 
-val create : ?middlewares:Middleware.Client.t list -> unit -> t
+val create : ?middlewares:Middleware.t list -> unit -> t
 (** New client state *)
 
-val add_middleware : t -> Middleware.Client.t -> unit
+val add_middleware : t -> Middleware.t -> unit
 
 val handle_response :
   t ->

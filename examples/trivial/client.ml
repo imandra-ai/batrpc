@@ -2,7 +2,7 @@ let ( let@ ) = ( @@ )
 let port = 12345
 
 module RPC = Batrpc
-module Client = RPC.Basic_client
+module Client = RPC.Client
 module Fut = Moonpool.Fut
 
 let () =
@@ -10,9 +10,8 @@ let () =
   let timer = Timer.create () in
 
   Printf.printf "connecting...\n%!";
-  let@ runner = Moonpool.Fifo_pool.with_ () in
   let client : Client.t =
-    match RPC.Tcp_client.connect ~timer ~runner addr with
+    match RPC.Tcp_client.connect ~timer addr with
     | Ok c -> c
     | Error err ->
       let err =

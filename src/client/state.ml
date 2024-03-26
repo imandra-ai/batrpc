@@ -23,7 +23,7 @@ type in_flight =
 
 type state = {
   mutable counter: int;  (** to allocate message numbers *)
-  mutable middlewares: Middleware.Client.t list;
+  mutable middlewares: Middleware.t list;
   in_flight: in_flight Int32_tbl.t;
 }
 
@@ -159,7 +159,7 @@ let handle_timeout (self : t) id : unit =
         Fut.fulfill_idempotent promise (Error (Error.E err, bt)))
     entry
 
-let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.Client.t) :
+let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.t) :
     _ Handler.t =
   m.handle rpc h
 
