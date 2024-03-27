@@ -217,14 +217,17 @@ let t_with_pipe ~encoding () =
 
   (* thread for server *)
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
-  let server : RPC.Server.For_client.t =
-    let encoding = RPC.Encoding.read_from_ic ic_server in
+
+  let server : RPC.Server.For_client.t * Thread.t =
     let state = RPC.Server.State.create ~services () in
-    RPC.Server.For_client.create ~active ~runner ~timer ~state ~encoding
-      ~ic:ic_server ~oc:oc_server ()
+    let s =
+      RPC.Server.For_client.create ~active ~runner ~timer ~state ~encoding
+        ~ic:ic_server ~oc:oc_server ()
+    in
+    s, Thread.create RPC.Server.For_client.run s
   in
   let@ () =
-    Fun.protect ~finally:(fun () -> RPC.Server.For_client.close server)
+    Fun.protect ~finally:(fun () -> RPC.Server.For_client.close (fst server))
   in
 
   run_tests_on ~client ();
