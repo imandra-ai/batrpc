@@ -1,7 +1,5 @@
 (** Basic client that doesn't have a server component *)
 
-open Common_
-
 type 'a with_ctx = Handler.ctx * 'a
 type t
 

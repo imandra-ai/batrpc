@@ -1,7 +1,5 @@
 (** Server side for a given connection. *)
 
-open Common_
-
 type t
 (** Server side for a given connection to a client *)
 
@@ -68,6 +66,14 @@ val add_middleware : t -> Middleware.t -> unit
 val add_service : t -> handler Service.Server.t -> unit
 val list_services : t -> handler Service.Server.t list
 val find_meth : t -> string -> (string * handler) option
+
+val send_heartbeat :
+  buf_pool:Buf_pool.t ->
+  oc:#Io.Out.t Lock.t ->
+  encoding:Encoding.t ->
+  unit ->
+  unit
+(** Send a heartbeat message *)
 
 val handle_request :
   t ->

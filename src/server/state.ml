@@ -141,6 +141,12 @@ let send_stream_close ~buf_pool ~oc ~encoding ~(meta : Meta.meta) () : unit =
   Framing.write_empty ~buf_pool ~encoding oc meta ();
   oc#flush ()
 
+let send_heartbeat ~buf_pool ~oc ~encoding () : unit =
+  let meta = Meta.make_meta ~id:0l ~kind:Meta.Heartbeat ~headers:[] () in
+  let@ oc = Lock.with_lock oc in
+  Framing.write_empty ~buf_pool ~encoding oc meta ();
+  oc#flush ()
+
 let[@inline] apply_middleware ~service_name rpc (h : _ Handler.t)
     (m : Middleware.t) : _ Handler.t =
   m.handle ~service_name rpc h

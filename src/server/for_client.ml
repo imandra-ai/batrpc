@@ -8,6 +8,7 @@ type t = {
   is_open: bool Atomic.t;
   other_side_did_close: bool Atomic.t;
   buf_pool: Buf_pool.t;
+  timer: Timer.t;
   runner: Runner.t;
   encoding: Encoding.t;
   st: State.t;
@@ -60,7 +61,7 @@ let close self =
     close_real_ self
 
 let handle_close (self : t) : unit =
-  Log.info (fun k -> k "Bin_rpc.conn: remote side closed the connection");
+  Log.info (fun k -> k "Server: remote side closed the connection");
   Atomic.set self.other_side_did_close true;
   close self
 
@@ -70,17 +71,38 @@ open struct
     | Some sw -> Switch.is_on sw
 end
 
+let send_heartbeat (self : t) : unit =
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.send-heartbeat" in
+
+  try
+    State.send_heartbeat ~buf_pool:self.buf_pool ~encoding:self.encoding
+      ~oc:self.oc ()
+  with exn ->
+    let bt = Printexc.get_raw_backtrace () in
+    let err = Error.of_exn ~bt ~kind:Errors.network exn in
+    Log.err (fun k -> k "Could not send heartbeat:@ %a" Error.pp err);
+    close self
+
 (** Main loop for the background worker. *)
 let run (self : t) : unit =
-  Trace.set_thread_name "rpc-conn.bg";
-  let@ () = with_logging_error_as_warning_ "running background loop" in
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.for-client.run" in
+  let@ () = with_logging_error_as_warning_ "handling RPC client" in
+
+  let timer_handle =
+    Timer.run_every_s' self.timer ~initial:0.005 0.5 (fun () ->
+        send_heartbeat self)
+  in
+  let@ () =
+    Fun.protect ~finally:(fun () -> Timer.cancel self.timer timer_handle)
+  in
+
   while Atomic.get self.is_open && is_on_or_absent self.active do
     match
       Framing.read_meta self.ic ~encoding:self.encoding ~buf_pool:self.buf_pool
     with
     | exception End_of_file -> handle_close self
     | exception Sys_error msg ->
-      Log.warn (fun k -> k "RPC conn failed to read message: sys error %s" msg);
+      Log.warn (fun k -> k "Server: failed to read message: sys error %s" msg);
       handle_close self
     | None -> handle_close self
     | Some meta ->
@@ -109,7 +131,7 @@ let run (self : t) : unit =
   Log.debug (fun k -> k "rpc-conn bg: exiting")
 
 let create ?(buf_pool = Buf_pool.create ()) ?active ?state ~encoding ~runner
-    ~timer:_ ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
+    ~timer ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
   let state =
     match state with
     | None -> State.create ~services:[] ()
@@ -125,6 +147,7 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?state ~encoding ~runner
       st = state;
       encoding;
       active;
+      timer;
       runner;
       is_open = Atomic.make true;
       other_side_did_close = Atomic.make false;

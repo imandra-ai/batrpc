@@ -1,7 +1,5 @@
 (** Basic server for a single client, on an existing connection. *)
 
-open Common_
-
 type 'a with_ctx = Handler.ctx * 'a
 type t
 

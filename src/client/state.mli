@@ -1,5 +1,3 @@
-open Common_
-
 type 'a with_ctx = Handler.ctx * 'a
 
 type t
