@@ -1,3 +1,5 @@
+(** The production side of a stream. *)
+
 type 'a t = {
   push: 'a -> unit;
   close: unit -> unit;

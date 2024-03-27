@@ -8,4 +8,6 @@
   (re_export pbrt_services)
   unix
   (re_export batrpc.core)
+  (re_export batrpc.client)
+  (re_export batrpc.server)
   (re_export batrpc.unix)))

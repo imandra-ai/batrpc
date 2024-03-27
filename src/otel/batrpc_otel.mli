@@ -13,5 +13,5 @@ val k_span_ctx : Otel.Span_ctx.t Hmap.key
     set this key if an incoming span context was parsed. *)
 
 module Server : sig
-  val middlewares : unit -> Middleware.Server.t list
+  val middlewares : unit -> Server.Middleware.t list
 end

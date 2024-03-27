@@ -1,7 +1,5 @@
 (** Server-side request handler *)
 
-open Common_
-
 type 'a with_ctx = 'a Handler.with_ctx
 
 type ('req, 'res, 'state) client_stream_handler_with_state = {
