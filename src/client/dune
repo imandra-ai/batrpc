@@ -1,4 +1,3 @@
-
 (library
  (name batrpc_client)
  (public_name batrpc.client)

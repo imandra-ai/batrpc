@@ -1,5 +1,3 @@
-
-
 (library
  (name batrpc_server)
  (public_name batrpc.server)
