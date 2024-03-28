@@ -83,6 +83,12 @@ let send_heartbeat (self : t) : unit =
     Log.err (fun k -> k "Could not send heartbeat:@ %a" Error.pp err);
     close self
 
+(** Just read the empty body *)
+let handle_heartbeat (self : t) ~meta : unit =
+  Framing.read_empty ~buf_pool:self.buf_pool self.ic ~encoding:self.encoding
+    ~meta;
+  ()
+
 (** Main loop for the background worker. *)
 let run (self : t) : unit =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.for-client.run" in
@@ -112,7 +118,7 @@ let run (self : t) : unit =
       (* examine the incoming message *)
       (match meta.kind with
       | Close -> handle_close self
-      | Heartbeat -> ()
+      | Heartbeat -> handle_heartbeat self ~meta
       | Request ->
         State.handle_request self.st ~runner:self.runner ~buf_pool:self.buf_pool
           ~meta ~encoding:self.encoding ~ic:self.ic ~oc:self.oc ()

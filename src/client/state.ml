@@ -176,8 +176,7 @@ let with_pbrt_enc_ ?buf_pool () f =
   | Some pool -> Buf_pool.with_enc pool f
 
 let check_timeout_ timeout_s =
-  if timeout_s < 0.001 then
-    invalid_arg "Bin_rpc.Client: timeout must be >= 1ms."
+  if timeout_s < 0.001 then invalid_arg "BatRPC.Client: timeout must be >= 1ms."
 
 let prepare_query_ (self : state) ~(rpc : _ Service.Client.rpc) ~headers
     ~in_flight () : int32 * Meta.meta =

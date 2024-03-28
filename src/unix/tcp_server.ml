@@ -97,7 +97,8 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
     match Encoding.of_int32_le magic_number with
     | Some e -> e
     | None ->
-      Error.failf ~kind:Errors.protocol "Rpc_conn: invalid magic number %ld"
+      Error.failf ~kind:Errors.protocol
+        "RPC server: invalid magic number %ld (when reading the encoding)"
         magic_number
   in
 

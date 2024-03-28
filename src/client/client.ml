@@ -33,7 +33,7 @@ let with_logging_error_as_warning_ what f =
     Log.warn (fun k -> k "Rpc_conn: %s:@ %a" what Error.pp err)
 
 let close_real_ ~join_bg self : unit =
-  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.conn.close" in
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.client.close" in
 
   let () =
     let@ oc = Lock.with_lock self.oc in
@@ -54,7 +54,7 @@ let close_real_ ~join_bg self : unit =
   self.ic#close ();
 
   let join_thread_ th =
-    let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "bin-rpc.rpc-conn.join" in
+    let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.client.join" in
     Thread.join th
   in
 
@@ -88,6 +88,12 @@ open struct
     | Some sw -> Switch.is_on sw
 end
 
+(** Just read the empty body *)
+let handle_heartbeat (self : t) ~meta : unit =
+  Framing.read_empty ~buf_pool:self.buf_pool self.ic ~encoding:self.encoding
+    ~meta;
+  ()
+
 (** Main loop for the background worker. *)
 let background_worker (self : t) : unit =
   Trace.set_thread_name "rpc.client.bg";
@@ -96,7 +102,9 @@ let background_worker (self : t) : unit =
     match
       Framing.read_meta self.ic ~encoding:self.encoding ~buf_pool:self.buf_pool
     with
-    | exception End_of_file -> handle_close self
+    | exception End_of_file ->
+      Log.debug (fun k -> k "reached end-of-file");
+      handle_close self
     | exception Sys_error msg ->
       Log.warn (fun k ->
           k "RPC client failed to read message: sys error %s" msg);
@@ -108,14 +116,16 @@ let background_worker (self : t) : unit =
 
       (* examine the incoming message *)
       (match meta.kind with
-      | Close -> handle_close self
+      | Close ->
+        Log.debug (fun k -> k "got `close` message");
+        handle_close self
       | Response ->
         State.handle_response self.st ~buf_pool:self.buf_pool ~meta ~ic:self.ic
           ~encoding:self.encoding ()
       | Error ->
         State.handle_error self.st ~buf_pool:self.buf_pool ~meta ~ic:self.ic
           ~encoding:self.encoding ()
-      | Heartbeat -> ()
+      | Heartbeat -> handle_heartbeat self ~meta
       | Server_stream_item ->
         State.handle_stream_item self.st ~buf_pool:self.buf_pool ~meta
           ~ic:self.ic ~encoding:self.encoding ()
