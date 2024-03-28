@@ -22,7 +22,7 @@ format:
 	@dune build $(DUNE_OPTS) @fmt --auto-promote
 
 format-check:
-	@dune build $(DUNE_OPTS) @fmt --display=quiet
+	@dune build $(DUNE_OPTS) @fmt --display=quiet --ignore-promoted-rules
 
 WATCH?= @check @runtest
 watch:
