@@ -191,9 +191,10 @@ let run_server_stream_test ~client () : unit =
   let l = Fut.wait_block fut in
   Result.iter_error
     (fun (exn, _) ->
-      Fmt.printf "stream test failed with: %s@." @@ Printexc.to_string exn)
+      Fmt.eprintf "stream test failed with: %s@." @@ Printexc.to_string exn)
     l;
 
+  (* Result.iter (Fmt.eprintf "l=%a@." Fmt.Dump.(list int)) l; *)
   assert (l = Ok [ 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10 ]);
   ()
 
@@ -340,6 +341,15 @@ let t_tcp ~encoding ~stress_n () =
 let () =
   let@ () = Trace_tef.with_setup () in
   Trace.set_thread_name "main";
+
+  let debug = ref false in
+  let opts = [ "-d", Arg.Set debug, " debug" ] |> Arg.align in
+  Arg.parse opts ignore "";
+  if !debug then (
+    Logger.setup_level ~debug:true ();
+    Logger.setup_logger_to_stderr ()
+  );
+
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main" in
 
   try
@@ -350,6 +360,7 @@ let () =
     (let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.json" in
      t_with_pipe ~encoding:RPC.Encoding.Json ();
      t_tcp ~encoding:RPC.Encoding.Json ~stress_n:100 ());
+
     Trace.message "end main"
   with Error.E err ->
     Fmt.printf "error: %a@." Error.pp err;
