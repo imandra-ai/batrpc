@@ -230,6 +230,12 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc :
 
 let default_timeout_s_ : float = 30.
 
+let send_heartbeat ~buf_pool ~oc ~encoding () : unit =
+  let meta = Meta.make_meta ~id:0l ~kind:Meta.Heartbeat ~headers:[] () in
+  let@ oc = Lock.with_lock oc in
+  Framing.write_empty ~buf_pool ~encoding oc meta ();
+  oc#flush ()
+
 let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t) ~encoding
     ?(headers = []) ?(timeout_s = default_timeout_s_) rpc req : _ Fut.t =
   let initial_handler =

@@ -95,11 +95,12 @@ let handle_heartbeat (self : t) ~meta : unit =
   ()
 
 (** Main loop for the background worker. *)
-let background_worker (self : t) : unit =
+let background_worker_loop_ (self : t) : unit =
   Trace.set_thread_name "rpc.client.bg";
   let@ () = with_logging_error_as_warning_ "running background loop" in
   while Atomic.get self.is_open && is_on_or_absent self.active do
     match
+      (* TODO: use a timeout in the read *)
       Framing.read_meta self.ic ~encoding:self.encoding ~buf_pool:self.buf_pool
     with
     | exception End_of_file ->
@@ -140,6 +141,18 @@ let background_worker (self : t) : unit =
   done;
   Log.debug (fun k -> k "rpc-conn bg: exiting")
 
+let send_heartbeat (self : t) : unit =
+  let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.send-heartbeat" in
+
+  try
+    State.send_heartbeat ~buf_pool:self.buf_pool ~encoding:self.encoding
+      ~oc:self.oc ()
+  with exn ->
+    let bt = Printexc.get_raw_backtrace () in
+    let err = Error.of_exn ~bt ~kind:Errors.network exn in
+    Log.err (fun k -> k "Could not send heartbeat:@ %a" Error.pp err);
+    close_ self ~join_bg:false
+
 let create ?(buf_pool = Buf_pool.create ()) ?active ~encoding ~timer
     ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
   let st = State.create () in
@@ -165,7 +178,13 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ~encoding ~timer
     }
   in
 
-  self.background_worker <- Some (Thread.create background_worker self);
+  self.background_worker <- Some (Thread.create background_worker_loop_ self);
+
+  (* send regular hearbeats *)
+  let timer_handle =
+    Timer.run_every_s' timer ~initial:0.005 0.5 (fun () -> send_heartbeat self)
+  in
+  Fut.on_result on_close (fun _ -> Timer.cancel timer timer_handle);
 
   let close_when_active_is_off () = close_without_joining self in
   Option.iter

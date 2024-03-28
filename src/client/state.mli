@@ -45,6 +45,14 @@ val handle_stream_close :
   unit ->
   unit
 
+val send_heartbeat :
+  buf_pool:Buf_pool.t ->
+  oc:#Io.Out.t Lock.t ->
+  encoding:Encoding.t ->
+  unit ->
+  unit
+(** Send a heartbeat message *)
+
 val call :
   t ->
   ?buf_pool:Buf_pool.t ->
