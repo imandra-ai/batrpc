@@ -108,7 +108,7 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
     Server.For_client.create ~active:self.active ~buf_pool:self.buf_pool
       ~state:self.st ~runner:self.runner ~encoding ~timer:self.timer ~ic ~oc ()
   in
-  (* TODO: use a fiber isntead? *)
+  (* TODO: use a fiber instead? *)
   ignore (Thread.create Server.For_client.run rpc_conn : Thread.t);
 
   Fut.on_result (Server.For_client.on_close rpc_conn) (fun _ ->
