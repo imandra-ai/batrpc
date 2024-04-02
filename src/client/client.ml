@@ -112,7 +112,7 @@ let background_worker_loop_ (self : t) : unit =
       handle_close self
     | None -> handle_close self
     | Some meta ->
-      Log.debug (fun k -> k "client: read message %a" Meta.pp_kind meta.kind);
+      Log.debug (fun k -> k "rpc.client: read message %a" Meta.pp_meta meta);
 
       (*Trace.messagef (fun k ->
           k "rpc conn.bg: read msg %a" Meta.pp_kind meta.kind);*)
