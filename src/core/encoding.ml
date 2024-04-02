@@ -8,6 +8,8 @@ let show = function
   | Binary -> "binary"
   | Json -> "json"
 
+let pp = Fmt.of_to_string show
+
 (** The encoding as a u32_le, for negociation *)
 let to_int32_le = function
   | Binary -> Bytes.get_int32_le (Bytes.unsafe_of_string "BATB") 0
