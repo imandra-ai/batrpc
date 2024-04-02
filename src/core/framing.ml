@@ -59,6 +59,7 @@ let read_with_dec_ ~buf_pool ic ~(meta : Meta.meta) ~what ~f_dec =
   let@ () = Error.guardf (fun k -> k "Reading body of %s" what) in
   let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
   let@ buf = Buf_pool.with_buf buf_pool body_size in
+  assert (Bytes.length buf >= body_size);
   Io.In.really_input ic buf 0 body_size;
 
   (* decompress if needed *)
@@ -189,6 +190,10 @@ let write_with_b_ ?buf_pool ?enc (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x :
     else
       body_str, None
   in
+
+  if Int64.(of_int (Bytes.length body_str) > of_int32 Int32.max_int) then
+    Error.failf ~kind:Errors.protocol "Cannot send message with body size %d."
+      (Bytes.length body_str);
 
   (* send meta *)
   let meta : Meta.meta =
