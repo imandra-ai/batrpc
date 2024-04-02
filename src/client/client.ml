@@ -153,9 +153,9 @@ let send_heartbeat (self : t) : unit =
     Log.err (fun k -> k "Could not send heartbeat:@ %a" Error.pp err);
     close_ self ~join_bg:false
 
-let create ?(buf_pool = Buf_pool.create ()) ?active ~encoding ~timer
-    ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
-  let st = State.create () in
+let create ?(buf_pool = Buf_pool.create ()) ?active ?(config = Config.default)
+    ~encoding ~timer ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
+  let st = State.create ~default_timeout_s:config.default_timeout_s () in
 
   let ic = (ic :> Io.In.t) in
   let oc = (oc :> Io.Out.t) in
@@ -182,7 +182,10 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ~encoding ~timer
 
   (* send regular hearbeats *)
   let timer_handle =
-    Timer.run_every_s' timer ~initial:0.005 0.5 (fun () -> send_heartbeat self)
+    match config.heartbeat_interval_s with
+    | None -> Timer.Handle.dummy
+    | Some t ->
+      Timer.run_every_s' timer ~initial:0.005 t (fun () -> send_heartbeat self)
   in
   Fut.on_result on_close (fun _ -> Timer.cancel timer timer_handle);
 

@@ -5,6 +5,7 @@ type handler = State.handler
 
 type t = {
   active: Switch.t option;
+  config: Config.t;
   is_open: bool Atomic.t;
   other_side_did_close: bool Atomic.t;
   buf_pool: Buf_pool.t;
@@ -95,8 +96,11 @@ let run (self : t) : unit =
   let@ () = with_logging_error_as_warning_ "handling RPC client" in
 
   let timer_handle =
-    Timer.run_every_s' self.timer ~initial:0.005 0.5 (fun () ->
-        send_heartbeat self)
+    match self.config.heartbeat_interval_s with
+    | None -> Timer.Handle.dummy
+    | Some t ->
+      Timer.run_every_s' self.timer ~initial:0.005 t (fun () ->
+          send_heartbeat self)
   in
   let@ () =
     Fun.protect ~finally:(fun () -> Timer.cancel self.timer timer_handle)
@@ -136,8 +140,9 @@ let run (self : t) : unit =
   done;
   Log.debug (fun k -> k "rpc-conn bg: exiting")
 
-let create ?(buf_pool = Buf_pool.create ()) ?active ?state ~encoding ~runner
-    ~timer ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
+let create ?(buf_pool = Buf_pool.create ()) ?active ?state
+    ?(config = Config.default) ~encoding ~runner ~timer ~(ic : #Io.In.t)
+    ~(oc : #Io.Out.t) () : t =
   let state =
     match state with
     | None -> State.create ~services:[] ()
@@ -151,6 +156,7 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?state ~encoding ~runner
   let self =
     {
       st = state;
+      config;
       encoding;
       active;
       timer;

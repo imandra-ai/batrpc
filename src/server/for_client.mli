@@ -7,6 +7,7 @@ val create :
   ?buf_pool:Buf_pool.t ->
   ?active:Switch.t ->
   ?state:State.t ->
+  ?config:Config.t ->
   encoding:Encoding.t ->
   runner:Runner.t ->
   timer:Timer.t ->

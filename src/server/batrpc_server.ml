@@ -1,6 +1,7 @@
-module State = State
-module Middleware = Middleware
+module Config = Config
 module For_client = For_client
+module Middleware = Middleware
+module State = State
 include Server_handler
 
 let mk_handler = State.mk_handler

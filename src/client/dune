@@ -4,6 +4,7 @@
  (synopsis "Client side of the RPC.")
  (private_modules common_)
  (flags :standard -open Batrpc_core -open Imandrakit -open Imandrakit_thread)
+ (preprocess (pps ppx_deriving.std))
  (libraries
   trace.core
   imandrakit

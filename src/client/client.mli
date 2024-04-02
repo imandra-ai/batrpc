@@ -6,6 +6,7 @@ type t
 val create :
   ?buf_pool:Buf_pool.t ->
   ?active:Switch.t ->
+  ?config:Config.t ->
   encoding:Encoding.t ->
   timer:Timer.t ->
   ic:#Io.In.t ->

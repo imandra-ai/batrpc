@@ -4,7 +4,8 @@ type t
 (** Client-side state. This tracks the state of
     in-flight requests and active streams. *)
 
-val create : ?middlewares:Middleware.t list -> unit -> t
+val create :
+  ?middlewares:Middleware.t list -> default_timeout_s:float -> unit -> t
 (** New client state *)
 
 val add_middleware : t -> Middleware.t -> unit
