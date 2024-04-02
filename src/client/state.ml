@@ -169,7 +169,8 @@ let create ?(middlewares = []) ~default_timeout_s () : t =
     st =
       Lock.create
         {
-          counter = 0;
+          (* leave id=0 for hearbeats and the likes *)
+          counter = 1;
           middlewares;
           default_timeout_s;
           in_flight = Int32_tbl.create 8;
