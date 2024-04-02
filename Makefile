@@ -18,6 +18,12 @@ doc:
 build-dev:
 	dune build @install @runtest $(DUNE_OPTS) --workspace=dune-workspace.dev
 
+format:
+	@dune build $(DUNE_OPTS) @fmt --auto-promote
+
+format-check:
+	@dune build $(DUNE_OPTS) @fmt --display=quiet --ignore-promoted-rules
+
 WATCH?= @check @runtest
 watch:
 	dune build $(DUNE_OPTS) -w $(WATCH) --ignore-promoted-rules

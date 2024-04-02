@@ -1,16 +1,14 @@
-open Common_
-module Push_stream = Push_stream
-
 type 'a with_ctx = Handler.ctx * 'a
 
 type t
 (** Client-side state. This tracks the state of
     in-flight requests and active streams. *)
 
-val create : ?middlewares:Middleware.Client.t list -> unit -> t
+val create :
+  ?middlewares:Middleware.t list -> default_timeout_s:float -> unit -> t
 (** New client state *)
 
-val add_middleware : t -> Middleware.Client.t -> unit
+val add_middleware : t -> Middleware.t -> unit
 
 val handle_response :
   t ->
@@ -47,6 +45,14 @@ val handle_stream_close :
   encoding:Encoding.t ->
   unit ->
   unit
+
+val send_heartbeat :
+  buf_pool:Buf_pool.t ->
+  oc:#Io.Out.t Lock.t ->
+  encoding:Encoding.t ->
+  unit ->
+  unit
+(** Send a heartbeat message *)
 
 val call :
   t ->

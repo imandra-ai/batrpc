@@ -1,10 +1,12 @@
-open Util_
+module Server = Batrpc_server
+
+type conn = Server.For_client.t
 
 type t = {
   active: Switch.t;
   alive: bool Atomic.t;
-  st: Server_state.t;
-  on_new_client: Rpc_conn.t -> Unix.sockaddr -> unit;
+  st: Server.State.t;
+  on_new_client: conn -> Unix.sockaddr -> unit;
   sock: Unix.file_descr;
   runner: Runner.t;
   timer: Timer.t;
@@ -20,7 +22,7 @@ let terminate self : unit =
     try Unix.close self.sock with _ -> ()
   )
 
-let add_middleware self m = Server_state.add_middleware self.st m
+let add_middleware self m = Server.State.add_middleware self.st m
 
 let create ?server_state ?(on_new_client = fun _ _ -> ())
     ?(config_socket = ignore) ?(reuseaddr = true) ?(middlewares = []) ~active
@@ -46,9 +48,9 @@ let create ?server_state ?(on_new_client = fun _ _ -> ())
   let st =
     match server_state with
     | Some s ->
-      List.iter (Server_state.add_service s) services;
+      List.iter (Server.State.add_service s) services;
       s
-    | None -> Server_state.create ~services ()
+    | None -> Server.State.create ~services ()
   in
 
   let self =
@@ -95,19 +97,21 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
     match Encoding.of_int32_le magic_number with
     | Some e -> e
     | None ->
-      Error.failf ~kind:Errors.protocol "Rpc_conn: invalid magic number %ld"
+      Error.failf ~kind:Errors.protocol
+        "RPC server: invalid magic number %ld (when reading the encoding)"
         magic_number
   in
 
   (* spawn a background thread, using the same [active] so as
      to propagate cancellation to it *)
-  let rpc_conn : Rpc_conn.t =
-    Rpc_conn.create ~active:self.active ~buf_pool:self.buf_pool
-      ~server_state:self.st ~runner:self.runner ~encoding ~timer:self.timer ~ic
-      ~oc ()
+  let rpc_conn : conn =
+    Server.For_client.create ~active:self.active ~buf_pool:self.buf_pool
+      ~state:self.st ~runner:self.runner ~encoding ~timer:self.timer ~ic ~oc ()
   in
+  (* TODO: use a fiber instead? *)
+  ignore (Thread.create Server.For_client.run rpc_conn : Thread.t);
 
-  Fut.on_result (Rpc_conn.on_close rpc_conn) (fun _ ->
+  Fut.on_result (Server.For_client.on_close rpc_conn) (fun _ ->
       Atomic.decr self.alive_conns);
 
   (* optional callback *)

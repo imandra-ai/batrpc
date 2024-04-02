@@ -1,8 +1,7 @@
-
 (test
-  (name test)
-  (flags :standard -w -32-44 -open Imandrakit -open Imandrakit_thread)
-  (libraries moonpool containers trace trace-tef batrpc))
+ (name test)
+ (flags :standard -w -32-44 -open Imandrakit -open Imandrakit_thread)
+ (libraries moonpool containers trace trace-tef batrpc))
 
 (rule
  (targets trivial.ml trivial.mli)
@@ -10,4 +9,13 @@
  (alias genproto)
  (mode promote)
  (action
-  (run ocaml-protoc --binary --pp --yojson --services --make --ml_out ./ %{deps})))
+  (run
+   ocaml-protoc
+   --binary
+   --pp
+   --yojson
+   --services
+   --make
+   --ml_out
+   ./
+   %{deps})))

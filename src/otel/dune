@@ -1,7 +1,6 @@
-
 (library
-  (name batrpc_otel)
-  (public_name batrpc-otel)
-  (synopsis "OTEL middleware for batrpc")
-  (flags :standard -open Batrpc -open Moonpool)
-  (libraries batrpc moonpool opentelemetry))
+ (name batrpc_otel)
+ (public_name batrpc-otel)
+ (synopsis "OTEL middleware for batrpc")
+ (flags :standard -open Batrpc -open Moonpool)
+ (libraries batrpc moonpool opentelemetry))

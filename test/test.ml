@@ -1,5 +1,5 @@
 module RPC = Batrpc
-module Client = RPC.Basic_client
+module Client = RPC.Client
 module Fut = Moonpool.Fut
 module Fmt = CCFormat
 
@@ -191,9 +191,10 @@ let run_server_stream_test ~client () : unit =
   let l = Fut.wait_block fut in
   Result.iter_error
     (fun (exn, _) ->
-      Fmt.printf "stream test failed with: %s@." @@ Printexc.to_string exn)
+      Fmt.eprintf "stream test failed with: %s@." @@ Printexc.to_string exn)
     l;
 
+  (* Result.iter (Fmt.eprintf "l=%a@." Fmt.Dump.(list int)) l; *)
   assert (l = Ok [ 0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10 ]);
   ()
 
@@ -204,27 +205,30 @@ let t_with_pipe ~encoding () =
   let@ ic_server, oc_client = RPC.Util_pipe.with_pipe ~close_noerr:true () in
 
   let active = Switch.create () in
-  let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let client : Client.t =
-    Client.create ~active ~runner ~timer ~encoding ~ic:ic_client ~oc:oc_client
-      ()
+    Client.create ~active ~timer ~encoding ~ic:ic_client ~oc:oc_client ()
   in
+
   let@ () =
     Fun.protect ~finally:(fun () ->
         let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "client.close" in
-        Client.close_and_join client;
-        Moonpool.Runner.shutdown runner)
+        Client.close_and_join client)
   in
 
   (* thread for server *)
-  let server : RPC.Server_for_client.t =
-    let encoding = RPC.Encoding.read_from_ic ic_server in
-    RPC.Server_for_client.create (* ~active *)
-      ~runner ~timer ~services ~encoding ~ic:ic_server ~oc:oc_server ()
+  let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
+
+  let server : RPC.Server.For_client.t * Thread.t =
+    let state = RPC.Server.State.create ~services () in
+    let s =
+      RPC.Server.For_client.create ~active ~runner ~timer ~state ~encoding
+        ~ic:ic_server ~oc:oc_server ()
+    in
+    s, Thread.create RPC.Server.For_client.run s
   in
   let@ () =
-    Fun.protect ~finally:(fun () -> RPC.Server_for_client.close server)
+    Fun.protect ~finally:(fun () -> RPC.Server.For_client.close (fst server))
   in
 
   run_tests_on ~client ();
@@ -274,8 +278,7 @@ let t_tcp ~encoding ~stress_n () =
 
   let with_client f =
     let client : Client.t =
-      RPC.Tcp_client.connect ~encoding ~active ~runner ~timer addr
-      |> Error.unwrap
+      RPC.Tcp_client.connect ~encoding ~active ~timer addr |> Error.unwrap
     in
     let@ () =
       Fun.protect ~finally:(fun () ->
@@ -338,6 +341,15 @@ let t_tcp ~encoding ~stress_n () =
 let () =
   let@ () = Trace_tef.with_setup () in
   Trace.set_thread_name "main";
+
+  let debug = ref false in
+  let opts = [ "-d", Arg.Set debug, " debug" ] |> Arg.align in
+  Arg.parse opts ignore "";
+  if !debug then (
+    Logger.setup_level ~debug:true ();
+    Logger.setup_logger_to_stderr ()
+  );
+
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main" in
 
   try
@@ -348,6 +360,7 @@ let () =
     (let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.json" in
      t_with_pipe ~encoding:RPC.Encoding.Json ();
      t_tcp ~encoding:RPC.Encoding.Json ~stress_n:100 ());
+
     Trace.message "end main"
   with Error.E err ->
     Fmt.printf "error: %a@." Error.pp err;

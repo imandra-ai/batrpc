@@ -14,6 +14,7 @@ depends: [
   "logs"
   "camlzip"
   "imandrakit"
+  "ppx_deriving"
   "iostream" {>= "0.2"}
   "hmap"
   "pbrt" {>= "3.0"}

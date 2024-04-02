@@ -1,16 +1,14 @@
 (** TCP client. *)
 
-open Util_
+module C = Batrpc_client
 
-type t = Rpc_conn.t
+type t = C.t
 
 val connect :
   ?active:Switch.t ->
   ?buf_pool:Buf_pool.t ->
-  ?middlewares:Middleware.Client.t list ->
-  ?services:Server_state.handler Service.Server.t list ->
+  ?middlewares:C.Middleware.t list ->
   ?encoding:Encoding.t ->
-  runner:Runner.t ->
   timer:Timer.t ->
   Unix.sockaddr ->
   t Error.result
@@ -21,10 +19,8 @@ val close_without_joining : t -> unit
 val with_connect :
   ?active:Switch.t ->
   ?buf_pool:Buf_pool.t ->
-  ?middlewares:Middleware.Client.t list ->
-  ?services:Server_state.handler Service.Server.t list ->
+  ?middlewares:C.Middleware.t list ->
   ?encoding:Encoding.t ->
-  runner:Runner.t ->
   timer:Timer.t ->
   Unix.sockaddr ->
   (t -> 'a) ->

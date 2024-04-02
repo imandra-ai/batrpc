@@ -23,7 +23,8 @@ type in_flight =
 
 type state = {
   mutable counter: int;  (** to allocate message numbers *)
-  mutable middlewares: Middleware.Client.t list;
+  mutable middlewares: Middleware.t list;
+  default_timeout_s: float;
   in_flight: in_flight Int32_tbl.t;
 }
 
@@ -159,14 +160,20 @@ let handle_timeout (self : t) id : unit =
         Fut.fulfill_idempotent promise (Error (Error.E err, bt)))
     entry
 
-let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.Client.t) :
+let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.t) :
     _ Handler.t =
   m.handle rpc h
 
-let create ?(middlewares = []) () : t =
+let create ?(middlewares = []) ~default_timeout_s () : t =
   {
     st =
-      Lock.create { counter = 0; middlewares; in_flight = Int32_tbl.create 8 };
+      Lock.create
+        {
+          counter = 0;
+          middlewares;
+          default_timeout_s;
+          in_flight = Int32_tbl.create 8;
+        };
   }
 
 (** Call [f] with a protobuf encoder *)
@@ -176,8 +183,7 @@ let with_pbrt_enc_ ?buf_pool () f =
   | Some pool -> Buf_pool.with_enc pool f
 
 let check_timeout_ timeout_s =
-  if timeout_s < 0.001 then
-    invalid_arg "Bin_rpc.Client: timeout must be >= 1ms."
+  if timeout_s < 0.001 then invalid_arg "BatRPC.Client: timeout must be >= 1ms."
 
 let prepare_query_ (self : state) ~(rpc : _ Service.Client.rpc) ~headers
     ~in_flight () : int32 * Meta.meta =
@@ -229,10 +235,20 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc :
   send_request_ ?buf_pool ~rpc ~oc ~encoding ~meta req;
   fut
 
-let default_timeout_s_ : float = 30.
+let send_heartbeat ~buf_pool ~oc ~encoding () : unit =
+  let meta = Meta.make_meta ~id:0l ~kind:Meta.Heartbeat ~headers:[] () in
+  let@ oc = Lock.with_lock oc in
+  Framing.write_empty ~buf_pool ~encoding oc meta ();
+  oc#flush ()
+
+let get_timeout_s_ (self : t) ?timeout_s () : float =
+  match timeout_s with
+  | Some t -> t
+  | None -> (Lock.get self.st).default_timeout_s
 
 let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t) ~encoding
-    ?(headers = []) ?(timeout_s = default_timeout_s_) rpc req : _ Fut.t =
+    ?(headers = []) ?timeout_s rpc req : _ Fut.t =
+  let timeout_s = get_timeout_s_ self ?timeout_s () in
   let initial_handler =
     mk_unary_handler self ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc
   in
@@ -317,7 +333,7 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
   stream, fut
 
 let call_server_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
-    ~encoding ?(headers = []) ?(timeout_s = default_timeout_s_)
+    ~encoding ?(headers = []) ?timeout_s
     (rpc :
       ( 'req,
         Service.Value_mode.unary,
@@ -326,6 +342,7 @@ let call_server_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
       Pbrt_services.Client.rpc) ~init ~on_item ~on_close req : _ Fut.t =
   (* TODO: can we just avoid that? *)
   let bt = Printexc.get_callstack 5 in
+  let timeout_s = get_timeout_s_ self ?timeout_s () in
   check_timeout_ timeout_s;
 
   let fut, promise = Fut.make () in
