@@ -17,9 +17,6 @@ RPC endpoints.
 Protobuf also generates (de)serialization code for these types, and
 bundles for the services.
 
-Each side of a connection can emit requests to the other side (acting
-as a "client"), and host services that receive requests from the
-other side (acting as "server").
 Multiple services can be provided on a single connection, provided
 they have distinct names.
 
@@ -28,8 +25,9 @@ they have distinct names.
 - auto-generation of types, services, and (de)serialization using [ocaml-protoc](https://github.com/mransan/ocaml-protoc/)
 - basic per-message compression for large messages, using `deflate`. Stream-level
     compression is not supported by BatRPC, but could be implemented transparently:
-    a `Rpc_conn.t` takes a pair of input/output byte streams which could be
-    compressed or encrypted.
+    a `Client.t` or `Server.For_client.t` takes a pair of input/output byte streams which could be
+    compressed or encrypted. The types from [iostream](https://github.com/c-cube/ocaml-iostream/) are
+    used to abstract over the byte streams.
 - messages carry headers, ie pairs of strings, pretty much like HTTP headers.
 - middlewares on the server side. A middleware can take an incoming request
     and its future reply, and insert metadata in headers, perform logging, tracing, etc.
