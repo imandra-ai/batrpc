@@ -10,7 +10,7 @@ test:
 	@dune runtest $(DUNE_OPTS)  --ignore-promoted-rules
 
 genproto:
-	@dune build @genproto
+	@dune build @genproto --force --auto-promote
 
 doc:
 	@dune build $(DUNE_OPTS) @doc
