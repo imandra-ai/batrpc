@@ -26,9 +26,7 @@
     (pbrt_services (>= 3.0))
     (moonpool (>= 0.5))
     (containers (and (>= 3.0) :with-test))
-    (trace :with-test)
-    (trace-tef :with-test))
-  (depopts
+    (trace-tef :with-test)
     (mtime (>= 2.0))
     (trace (>= 0.6))))
     
