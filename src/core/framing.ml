@@ -9,7 +9,11 @@ open struct
       Printf.sprintf "Malformed variant (variant name: %s)" variant_name
 
   let unwrap_body_size = function
-    | Some i -> i
+    | Some i32 ->
+      let i = Int32.to_int i32 in
+      if i < 0 then
+        Error.failf ~kind:Errors.protocol "invalid body size: %ld" i32;
+      i
     | None -> Error.fail ~kind:Errors.protocol "missing body_size"
 
   let decode_json_ decode (str : string) =
@@ -65,7 +69,7 @@ let read_meta ~config ~encoding ic : _ option =
 
 let read_with_dec_ ~config ic ~(meta : Meta.meta) ~what ~f_dec =
   let@ () = Error.guardf (fun k -> k "Reading body of %s" what) in
-  let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
+  let body_size = meta.body_size |> unwrap_body_size in
   let@ buf = Buf_pool.with_buf config.buf_pool body_size in
   assert (Bytes.length buf >= body_size);
   Io.In.really_input ic buf 0 body_size;
@@ -131,7 +135,7 @@ let read_error ~config (ic : #Io.In.t) ~encoding ~(meta : Meta.meta) :
 let read_and_discard ~config ic ~encoding ~(meta : Meta.meta) : unit =
   match encoding with
   | Encoding.Binary ->
-    let body_size = meta.body_size |> unwrap_body_size |> Int32.to_int in
+    let body_size = meta.body_size |> unwrap_body_size in
     let@ buf = Buf_pool.with_buf config.buf_pool body_size in
     Io.In.really_input ic buf 0 body_size
   | Encoding.Json -> ignore (read_line_exn_ ic : string)
