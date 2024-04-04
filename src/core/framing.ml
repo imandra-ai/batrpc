@@ -23,7 +23,14 @@ open struct
        with Pbrt_yojson.E.Failure err ->
          Error.failf ~kind:Errors.deser "could not decode json: %s"
          @@ string_of_error err)
-    | exception _ -> Error.fail ~kind:Errors.deser "invalid json"
+    | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      let err =
+        Error.of_exn ~bt ~kind:Errors.deser e
+        |> Error.add_ctx (Error.message "decoding (invalid) json")
+      in
+      Log.debug (fun k -> k "invalid json:@.%s@." str);
+      Error.raise_err err
 
   let read_line_exn_ (ic : #Io.In.t) : string =
     match Io.In.input_line ic with
