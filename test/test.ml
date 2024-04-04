@@ -220,7 +220,11 @@ let t_with_pipe ~encoding () =
   let@ runner = Moonpool.Ws_pool.with_ ~num_threads:4 () in
 
   let server : RPC.Server.For_client.t * Thread.t =
-    let state = RPC.Server.State.create ~services () in
+    let state =
+      RPC.Server.State.create ~services
+        ~framing_config:(RPC.Framing.default_config ())
+        ()
+    in
     let s =
       RPC.Server.For_client.create ~active ~runner ~timer ~state ~encoding
         ~ic:ic_server ~oc:oc_server ()

@@ -39,7 +39,10 @@ type state = {
       (** Direct access to methods by their fully qualified names *)
 }
 
-type t = { st: state Lock.t } [@@unboxed]
+type t = {
+  st: state Lock.t;
+  config: Framing.config;
+}
 
 let[@inline] list_services self : _ list = (Lock.get self.st).services
 
@@ -76,7 +79,7 @@ let[@inline] find_meth (self : t) name : _ option =
   let@ self = Lock.with_lock self.st in
   Str_tbl.find_opt self.meths name
 
-let create ?(middlewares = []) ~services () : t =
+let create ?(middlewares = []) ~services ~framing_config:config () : t =
   let st =
     {
       middlewares;
@@ -86,27 +89,27 @@ let create ?(middlewares = []) ~services () : t =
     }
   in
   List.iter (add_service_st_ st) services;
-  { st = Lock.create st }
+  { st = Lock.create st; config }
 
 (** write an error response, atomically *)
-let send_error ~buf_pool ~(meta : Meta.meta) ~oc ~encoding err : unit =
+let send_error (self : t) ~encoding ~(meta : Meta.meta) ~oc err : unit =
   let msg = Error.show err in
   let err = Meta.make_error ~msg () in
   let meta = Meta.make_meta ~id:meta.id ~kind:Meta.Error ~headers:[] () in
 
   let@ oc = Lock.with_lock oc in
-  Framing.write_error ~buf_pool ~encoding oc meta err;
+  Framing.write_error ~encoding ~config:self.config oc meta err;
   oc#flush ()
 
-let send_nothing_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta)
+let send_nothing_or_error (self : t) ~encoding ~oc ~(meta : Meta.meta)
     (res : unit Error.result) : unit =
   match res with
   | Ok () -> ()
   | Error err ->
     Log.err (fun k -> k "reply with error for id=%ld:@ %a" meta.id Error.pp err);
-    send_error ~buf_pool ~oc ~encoding ~meta err
+    send_error self ~encoding ~oc ~meta err
 
-let send_response_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc
+let send_response_or_error (self : t) ~encoding ~oc ~(meta : Meta.meta) ~rpc
     (res : _ Handler.with_ctx Error.result) : unit =
   match res with
   | Ok (ctx, res) ->
@@ -116,43 +119,43 @@ let send_response_or_error ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc
 
     (* send response, atomically *)
     let@ oc = Lock.with_lock oc in
-    Framing.write_res ~buf_pool ~encoding oc rpc meta res;
+    Framing.write_res ~config:self.config ~encoding oc rpc meta res;
     oc#flush ()
   | Error err ->
     Log.err (fun k -> k "reply with error for id=%ld:@ %a" meta.id Error.pp err);
-    send_error ~buf_pool ~oc ~encoding ~meta err
+    send_error self ~encoding ~oc ~meta err
 
-let send_stream_item ~buf_pool ~oc ~encoding ~(meta : Meta.meta) ~rpc res : unit
-    =
+let send_stream_item (self : t) ~encoding ~oc ~(meta : Meta.meta) ~rpc res :
+    unit =
   let meta =
     Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_item ~headers:[] ()
   in
 
   let@ oc = Lock.with_lock oc in
-  Framing.write_res ~buf_pool oc ~encoding rpc meta res;
+  Framing.write_res ~config:self.config ~encoding oc rpc meta res;
   oc#flush ()
 
-let send_stream_close ~buf_pool ~oc ~encoding ~(meta : Meta.meta) () : unit =
+let send_stream_close (self : t) ~encoding ~oc ~(meta : Meta.meta) () : unit =
   let meta =
     Meta.make_meta ~id:meta.id ~kind:Meta.Server_stream_close ~headers:[] ()
   in
 
   let@ oc = Lock.with_lock oc in
-  Framing.write_empty ~buf_pool ~encoding oc meta ();
+  Framing.write_empty ~config:self.config ~encoding oc meta ();
   oc#flush ()
 
-let send_heartbeat ~buf_pool ~oc ~encoding () : unit =
+let send_heartbeat (self : t) ~encoding ~oc () : unit =
   let meta = Meta.make_meta ~id:0l ~kind:Meta.Heartbeat ~headers:[] () in
   let@ oc = Lock.with_lock oc in
-  Framing.write_empty ~buf_pool ~encoding oc meta ();
+  Framing.write_empty ~config:self.config ~encoding oc meta ();
   oc#flush ()
 
 let[@inline] apply_middleware ~service_name rpc (h : _ Handler.t)
     (m : Middleware.t) : _ Handler.t =
   m.handle ~service_name rpc h
 
-let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
-    ~encoding () : unit =
+let handle_request (self : t) ~encoding ~runner ~(meta : Meta.meta) ~ic ~oc () :
+    unit =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.handle-req" in
   assert (meta.kind = Meta.Request);
 
@@ -160,11 +163,10 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
     let fut = f (ctx, req) in
     (* when [fut] is done, send result *)
     Fut.on_result fut (function
-      | Ok res ->
-        send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc (Ok res)
+      | Ok res -> send_response_or_error self ~encoding ~oc ~meta ~rpc (Ok res)
       | Error (exn, bt) ->
         let res = Error (Error.of_exn ~kind:Errors.handler ~bt exn) in
-        send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc res)
+        send_response_or_error self ~encoding ~oc ~meta ~rpc res)
   in
 
   let compute_stream_response f ~push_stream req : unit =
@@ -180,7 +182,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       Push_stream.close push_stream
     with exn ->
       let err = Error.of_exn ~kind:Errors.handler ~bt exn in
-      send_error ~buf_pool ~meta ~oc ~encoding err
+      send_error self ~encoding ~meta ~oc err
   in
 
   let res : unit Error.result =
@@ -199,7 +201,9 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       Error.failf ~kind:Errors.protocol "method not found: %S." meth_name
     | Some (service_name, Handler { h = Unary initial_handler; rpc }) ->
       (* read request here, but process it in the background *)
-      let req = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in
+      let req =
+        Framing.read_body_req ~encoding ~config:self.config ic ~meta rpc
+      in
 
       let handler =
         List.fold_left
@@ -217,7 +221,7 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
               rpc;
               h = Client_stream (Client_stream_handler ({ init; _ } as handler));
             } ) ->
-      Framing.read_empty ~buf_pool ic ~encoding ~meta;
+      Framing.read_empty ~config:self.config ~encoding ic ~meta;
 
       (* create stream bookkeeping data *)
       let ctx = { Handler.hmap = Hmap.empty; headers = meta.headers } in
@@ -229,19 +233,21 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       in
       ()
     | Some (_, Handler { rpc; h = Server_stream f }) ->
-      let req = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in
+      let req =
+        Framing.read_body_req ~config:self.config ~encoding ic ~meta rpc
+      in
 
       let closed = Atomic.make false in
 
       let push res : unit =
         if not (Atomic.get closed) then
-          send_stream_item ~buf_pool ~oc ~encoding ~meta ~rpc res
+          send_stream_item self ~encoding ~oc ~meta ~rpc res
       in
 
       let close () : unit =
         if not (Atomic.exchange closed true) then (
           Log.debug (fun k -> k "server: send stream close");
-          send_stream_close ~buf_pool ~oc ~encoding ~meta ()
+          send_stream_close self ~encoding ~oc ~meta ()
         )
       in
 
@@ -255,20 +261,20 @@ let handle_request (self : t) ~runner ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       Error.failf ~kind:Errors.handler "Cannot handle method %S." meth_name
   in
 
-  send_nothing_or_error ~buf_pool ~oc ~encoding ~meta res
+  send_nothing_or_error self ~encoding ~oc ~meta res
 
 let remove_stream_ (self : t) (id : int32) : unit =
   Log.debug (fun k -> k "(server.remove-stream@ :id %ld@]" id);
   let@ self = Lock.with_lock self.st in
   Int32_tbl.remove self.streams id
 
-let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
-    ~encoding () : unit =
+let handle_stream_close (self : t) ~encoding ~(meta : Meta.meta) ~ic ~oc () :
+    unit =
   let@ _sp =
     Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.handle-stream-close"
   in
   assert (meta.kind = Meta.Client_stream_close);
-  Framing.read_empty ~buf_pool ~encoding ic ~meta;
+  Framing.read_empty ~config:self.config ~encoding ic ~meta;
 
   match
     let@ self = Lock.with_lock self.st in
@@ -289,10 +295,10 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       handler.on_close state
     in
 
-    send_response_or_error ~buf_pool ~oc ~encoding ~meta ~rpc res
+    send_response_or_error self ~encoding ~oc ~meta ~rpc res
 
-let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
-    ~encoding () : unit =
+let handle_stream_item (self : t) ~encoding ~(meta : Meta.meta) ~ic ~oc () :
+    unit =
   let@ _sp =
     Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.handle-stream-item"
   in
@@ -309,7 +315,7 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       f state item
     in
 
-    send_nothing_or_error ~oc ~encoding ~buf_pool ~meta res
+    send_nothing_or_error self ~encoding ~oc ~meta res
   in
 
   let res : unit Error.result =
@@ -322,8 +328,10 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~oc
       Error.failf ~kind:Errors.protocol "No stream with id=%ld found." meta.id
     | Some (Str_client_stream { state; rpc; handler }) ->
       (* read item here, but process it in the background *)
-      let item = Framing.read_body_req ~buf_pool ic ~encoding ~meta rpc in
+      let item =
+        Framing.read_body_req ~config:self.config ~encoding ic ~meta rpc
+      in
       call_handler_ state handler.on_item item
   in
 
-  send_nothing_or_error ~buf_pool ~oc ~encoding ~meta res
+  send_nothing_or_error self ~encoding ~oc ~meta res

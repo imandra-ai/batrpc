@@ -8,11 +8,11 @@ type t = {
   config: Config.t;
   is_open: bool Atomic.t;
   other_side_did_close: bool Atomic.t;
-  buf_pool: Buf_pool.t;
   timer: Timer.t;
   runner: Runner.t;
-  encoding: Encoding.t;
   st: State.t;
+  encoding: Encoding.t;
+  framing_config: Framing.config;
   ic: Io.In.t;  (** Input stream. Only read by the background worker. *)
   oc: Io.Out.t Lock.t;  (** Output stream, shared between many tasks *)
   on_close_promise: unit Fut.promise;
@@ -45,7 +45,7 @@ let close_real_ (self : t) : unit =
         with_logging_error_as_warning_ "could not send 'close' message"
       in
       Log.debug (fun k -> k "send 'close' message");
-      Framing.write_empty oc ~encoding:self.encoding
+      Framing.write_empty ~config:self.framing_config ~encoding:self.encoding oc
         (Meta.make_meta ~id:0l ~kind:Meta.Close ~headers:[] ())
         ();
       oc#flush ()
@@ -75,9 +75,7 @@ end
 let send_heartbeat (self : t) : unit =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.send-heartbeat" in
 
-  try
-    State.send_heartbeat ~buf_pool:self.buf_pool ~encoding:self.encoding
-      ~oc:self.oc ()
+  try State.send_heartbeat self.st ~encoding:self.encoding ~oc:self.oc ()
   with exn ->
     let bt = Printexc.get_raw_backtrace () in
     let err = Error.of_exn ~bt ~kind:Errors.network exn in
@@ -86,7 +84,7 @@ let send_heartbeat (self : t) : unit =
 
 (** Just read the empty body *)
 let handle_heartbeat (self : t) ~meta : unit =
-  Framing.read_empty ~buf_pool:self.buf_pool self.ic ~encoding:self.encoding
+  Framing.read_empty ~config:self.framing_config ~encoding:self.encoding self.ic
     ~meta;
   ()
 
@@ -108,7 +106,8 @@ let run (self : t) : unit =
 
   while Atomic.get self.is_open && is_on_or_absent self.active do
     match
-      Framing.read_meta self.ic ~encoding:self.encoding ~buf_pool:self.buf_pool
+      Framing.read_meta self.ic ~config:self.framing_config
+        ~encoding:self.encoding
     with
     | exception End_of_file -> handle_close self
     | exception Sys_error msg ->
@@ -127,14 +126,14 @@ let run (self : t) : unit =
       | Close -> handle_close self
       | Heartbeat -> handle_heartbeat self ~meta
       | Request ->
-        State.handle_request self.st ~runner:self.runner ~buf_pool:self.buf_pool
-          ~meta ~encoding:self.encoding ~ic:self.ic ~oc:self.oc ()
+        State.handle_request self.st ~encoding:self.encoding ~runner:self.runner
+          ~meta ~ic:self.ic ~oc:self.oc ()
       | Client_stream_item ->
-        State.handle_stream_item self.st ~buf_pool:self.buf_pool ~meta
-          ~ic:self.ic ~oc:self.oc ~encoding:self.encoding ()
+        State.handle_stream_item self.st ~encoding:self.encoding ~meta
+          ~ic:self.ic ~oc:self.oc ()
       | Client_stream_close ->
-        State.handle_stream_close self.st ~buf_pool:self.buf_pool ~meta
-          ~ic:self.ic ~oc:self.oc ~encoding:self.encoding ()
+        State.handle_stream_close self.st ~encoding:self.encoding ~meta
+          ~ic:self.ic ~oc:self.oc ()
       | Error | Server_stream_item | Server_stream_close | Response | Invalid ->
         Log.err (fun k ->
             k "client: unexpected message of kind=%a" Meta.pp_kind meta.kind);
@@ -146,9 +145,12 @@ let run (self : t) : unit =
 let create ?(buf_pool = Buf_pool.create ()) ?active ?state
     ?(config = Config.default) ~encoding ~runner ~timer ~(ic : #Io.In.t)
     ~(oc : #Io.Out.t) () : t =
+  let framing_config : Framing.config =
+    Framing.make_config ~use_zlib:config.use_zlib ~buf_pool ()
+  in
   let state =
     match state with
-    | None -> State.create ~services:[] ()
+    | None -> State.create ~framing_config ~services:[] ()
     | Some st -> st
   in
 
@@ -160,13 +162,13 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?state
     {
       st = state;
       config;
-      encoding;
       active;
       timer;
       runner;
       is_open = Atomic.make true;
       other_side_did_close = Atomic.make false;
-      buf_pool;
+      encoding;
+      framing_config;
       ic;
       oc = Lock.create oc;
       on_close;

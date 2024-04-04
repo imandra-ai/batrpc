@@ -8,12 +8,12 @@ type t = {
   active: Switch.t option;
   is_open: bool Atomic.t;
   other_side_did_close: bool Atomic.t;
-  buf_pool: Buf_pool.t;
   timer: Timer.t;
-  encoding: Encoding.t;
   st: State.t;
   ic: Io.In.t;  (** Input stream. Only read by the background worker. *)
   oc: Io.Out.t Lock.t;  (** Output stream, shared between many tasks *)
+  encoding: Encoding.t;
+  framing_config: Framing.config;
   on_close_promise: unit Fut.promise;
   on_close: unit Fut.t;
   mutable background_worker: Thread.t option;
@@ -44,7 +44,7 @@ let close_real_ ~join_bg self : unit =
         with_logging_error_as_warning_ "could not send 'close' message"
       in
       Log.debug (fun k -> k "send 'close' message");
-      Framing.write_empty oc ~encoding:self.encoding
+      Framing.write_empty oc ~config:self.framing_config ~encoding:self.encoding
         (Meta.make_meta ~id:0l ~kind:Meta.Close ~headers:[] ())
         ();
       oc#flush ()
@@ -90,7 +90,7 @@ end
 
 (** Just read the empty body *)
 let handle_heartbeat (self : t) ~meta : unit =
-  Framing.read_empty ~buf_pool:self.buf_pool self.ic ~encoding:self.encoding
+  Framing.read_empty ~config:self.framing_config ~encoding:self.encoding self.ic
     ~meta;
   ()
 
@@ -101,7 +101,8 @@ let background_worker_loop_ (self : t) : unit =
   while Atomic.get self.is_open && is_on_or_absent self.active do
     match
       (* TODO: use a timeout in the read *)
-      Framing.read_meta self.ic ~encoding:self.encoding ~buf_pool:self.buf_pool
+      Framing.read_meta ~config:self.framing_config ~encoding:self.encoding
+        self.ic
     with
     | exception End_of_file ->
       Log.debug (fun k -> k "reached end-of-file");
@@ -122,19 +123,13 @@ let background_worker_loop_ (self : t) : unit =
       | Close ->
         Log.debug (fun k -> k "got `close` message");
         handle_close self
-      | Response ->
-        State.handle_response self.st ~buf_pool:self.buf_pool ~meta ~ic:self.ic
-          ~encoding:self.encoding ()
-      | Error ->
-        State.handle_error self.st ~buf_pool:self.buf_pool ~meta ~ic:self.ic
-          ~encoding:self.encoding ()
+      | Response -> State.handle_response self.st ~meta ~ic:self.ic ()
+      | Error -> State.handle_error self.st ~meta ~ic:self.ic ()
       | Heartbeat -> handle_heartbeat self ~meta
       | Server_stream_item ->
-        State.handle_stream_item self.st ~buf_pool:self.buf_pool ~meta
-          ~ic:self.ic ~encoding:self.encoding ()
+        State.handle_stream_item self.st ~meta ~ic:self.ic ()
       | Server_stream_close ->
-        State.handle_stream_close self.st ~buf_pool:self.buf_pool ~meta
-          ~ic:self.ic ~encoding:self.encoding ()
+        State.handle_stream_close self.st ~meta ~ic:self.ic ()
       | Request | Client_stream_item | Client_stream_close | Invalid ->
         Log.err (fun k ->
             k "client: unexpected message of kind=%a" Meta.pp_kind meta.kind);
@@ -146,9 +141,7 @@ let background_worker_loop_ (self : t) : unit =
 let send_heartbeat (self : t) : unit =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.send-heartbeat" in
 
-  try
-    State.send_heartbeat ~buf_pool:self.buf_pool ~encoding:self.encoding
-      ~oc:self.oc ()
+  try State.send_heartbeat self.st ~oc:self.oc ()
   with exn ->
     let bt = Printexc.get_raw_backtrace () in
     let err = Error.of_exn ~bt ~kind:Errors.network exn in
@@ -157,7 +150,13 @@ let send_heartbeat (self : t) : unit =
 
 let create ?(buf_pool = Buf_pool.create ()) ?active ?(config = Config.default)
     ~encoding ~timer ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
-  let st = State.create ~default_timeout_s:config.default_timeout_s () in
+  let framing_config =
+    Framing.make_config ~buf_pool ~use_zlib:config.use_zlib ()
+  in
+  let st =
+    State.create ~framing_config ~default_timeout_s:config.default_timeout_s
+      ~encoding ()
+  in
 
   let ic = (ic :> Io.In.t) in
   let oc = (oc :> Io.Out.t) in
@@ -166,11 +165,11 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?(config = Config.default)
   let self =
     {
       st;
-      encoding;
       active;
       is_open = Atomic.make true;
       other_side_did_close = Atomic.make false;
-      buf_pool;
+      encoding;
+      framing_config;
       timer;
       ic;
       oc = Lock.create oc;
@@ -201,18 +200,16 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?(config = Config.default)
 let call (self : t) ?headers ?timeout_s (rpc : _ Pbrt_services.Client.rpc) req :
     _ Fut.t =
   if not (Atomic.get self.is_open) then raise Closed;
-  State.call self.st ~timer:self.timer ?headers ?timeout_s ~oc:self.oc
-    ~encoding:self.encoding rpc req
+  State.call self.st ~timer:self.timer ?headers ?timeout_s ~oc:self.oc rpc req
 
 let call_client_stream (self : t) ?headers ?timeout_s
     (rpc : _ Pbrt_services.Client.rpc) : _ Push_stream.t * _ Fut.t =
   if not (Atomic.get self.is_open) then raise Closed;
-  State.call_client_stream self.st ~buf_pool:self.buf_pool ~timer:self.timer
-    ?headers ?timeout_s ~oc:self.oc ~encoding:self.encoding rpc
+  State.call_client_stream self.st ~timer:self.timer ?headers ?timeout_s
+    ~oc:self.oc rpc
 
 let call_server_stream (self : t) ?headers ?timeout_s
     (rpc : _ Pbrt_services.Client.rpc) ~init ~on_item ~on_close req : _ Fut.t =
   if not (Atomic.get self.is_open) then raise Closed;
-  State.call_server_stream self.st ~buf_pool:self.buf_pool ~timer:self.timer
-    ?headers ?timeout_s ~oc:self.oc ~encoding:self.encoding rpc ~init ~on_item
-    ~on_close req
+  State.call_server_stream self.st ~timer:self.timer ?headers ?timeout_s
+    ~oc:self.oc rpc ~init ~on_item ~on_close req

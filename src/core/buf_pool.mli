@@ -1,6 +1,6 @@
 (** Pool of byte resources to reuse *)
 
-type t
+type t [@@deriving show]
 (** The pool of encoders and buffers. Thread-safe. *)
 
 val create : ?enc_size:int -> ?buf_size:int -> unit -> t

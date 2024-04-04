@@ -17,6 +17,7 @@ val create :
   ?config_socket:(Unix.file_descr -> unit) ->
   ?reuseaddr:bool ->
   ?middlewares:Server.Middleware.t list ->
+  ?config:Server.Config.t ->
   active:Switch.t ->
   runner:Runner.t ->
   timer:Timer.t ->

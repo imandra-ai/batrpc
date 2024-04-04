@@ -24,11 +24,15 @@ type in_flight =
 type state = {
   mutable counter: int;  (** to allocate message numbers *)
   mutable middlewares: Middleware.t list;
-  default_timeout_s: float;
   in_flight: in_flight Int32_tbl.t;
 }
 
-type t = { st: state Lock.t } [@@unboxed]
+type t = {
+  st: state Lock.t;
+  encoding: Encoding.t;
+  config: Framing.config;
+  default_timeout_s: float;
+}
 
 let[@inline] remove_from_tbl_ (self : state) id : unit =
   Int32_tbl.remove self.in_flight id
@@ -38,32 +42,36 @@ let add_middleware self m : unit =
   self.middlewares <- m :: self.middlewares
 
 (** Handle a message of "response" type *)
-let handle_response (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding () :
-    unit =
+let handle_response (self : t) ~(meta : Meta.meta) ~ic () : unit =
   (* Trace.message "bin-rpc.client.handle-res"; *)
   assert (meta.kind = Meta.Response);
+
+  let config = self.config in
+  let encoding = self.encoding in
 
   let@ self = Lock.with_lock self.st in
   match Int32_tbl.find_opt self.in_flight meta.id with
   | None ->
     Log.err (fun k ->
         k "client: received response: no request had id %ld" meta.id);
-    Framing.read_and_discard ~buf_pool ~meta ~encoding ic
+    Framing.read_and_discard ~config ~meta ~encoding ic
   | Some (IF_unary { rpc; promise; _ }) ->
     remove_from_tbl_ self meta.id;
-    let res = Framing.read_body_res ~buf_pool ic ~encoding rpc ~meta in
+    let res = Framing.read_body_res ~config ~encoding ic rpc ~meta in
     let ctx = { Handler.headers = meta.headers; hmap = Hmap.empty } in
     Fut.fulfill_idempotent promise (Ok (ctx, res))
   | Some (IF_stream _) ->
     remove_from_tbl_ self meta.id;
-    Framing.read_and_discard ~buf_pool ~meta ~encoding ic;
+    Framing.read_and_discard ~config ~encoding ~meta ic;
     Log.err (fun k ->
         k "client: received response: expected stream item for id %ld" meta.id)
 
-let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding ()
-    : unit =
+let handle_stream_item (self : t) ~(meta : Meta.meta) ~ic () : unit =
   (* Trace.message "bin-rpc.client.handle-stream-item"; *)
   assert (meta.kind = Meta.Server_stream_item);
+
+  let config = self.config in
+  let encoding = self.encoding in
 
   let todo =
     let@ self = Lock.with_lock self.st in
@@ -71,16 +79,16 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding ()
     | None ->
       Log.err (fun k ->
           k "client: received stream item: no request had id %ld" meta.id);
-      Framing.read_and_discard ~buf_pool ~meta ~encoding ic;
+      Framing.read_and_discard ~config ~encoding ~meta ic;
       None
     | Some (IF_unary _) ->
       remove_from_tbl_ self meta.id;
-      Framing.read_and_discard ~buf_pool ~meta ~encoding ic;
+      Framing.read_and_discard ~config ~encoding ~meta ic;
       Log.err (fun k ->
           k "client: received stream item: expected response for id %ld" meta.id);
       None
     | Some (IF_stream { rpc; state; on_item; _ }) ->
-      let res = Framing.read_body_res ~buf_pool ~encoding ic rpc ~meta in
+      let res = Framing.read_body_res ~config ~encoding ic rpc ~meta in
       Some (fun () -> on_item state res)
   in
 
@@ -88,28 +96,30 @@ let handle_stream_item (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding ()
   | None -> ()
   | Some f -> f ()
 
-let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding
-    () : unit =
+let handle_stream_close (self : t) ~(meta : Meta.meta) ~ic () : unit =
   (* Trace.message "bin-rpc.client.handle-stream-close"; *)
   assert (meta.kind = Meta.Server_stream_close);
+
+  let config = self.config in
+  let encoding = self.encoding in
 
   let todo =
     let@ self = Lock.with_lock self.st in
     match Int32_tbl.find_opt self.in_flight meta.id with
     | None ->
-      Framing.read_and_discard ~buf_pool ~meta ~encoding ic;
+      Framing.read_and_discard ~config ~encoding ~meta ic;
       Log.err (fun k ->
           k "client: received stream-close: no request had id %ld" meta.id);
       None
     | Some (IF_unary _) ->
       remove_from_tbl_ self meta.id;
-      Framing.read_and_discard ~buf_pool ~meta ~encoding ic;
+      Framing.read_and_discard ~config ~encoding ~meta ic;
       Log.err (fun k ->
           k "client: received stream item: expected response for id %ld" meta.id);
       None
     | Some (IF_stream { on_close; state; promise; _ }) ->
       remove_from_tbl_ self meta.id;
-      Framing.read_empty ~buf_pool ~meta ~encoding ic;
+      Framing.read_empty ~config ~encoding ~meta ic;
       Some
         (fun () ->
           let res = on_close state in
@@ -121,23 +131,25 @@ let handle_stream_close (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding
   | Some f -> f ()
 
 (** Handle a message of "error" type *)
-let handle_error (self : t) ~buf_pool ~(meta : Meta.meta) ~ic ~encoding () :
-    unit =
+let handle_error (self : t) ~(meta : Meta.meta) ~ic () : unit =
+  let config = self.config in
+  let encoding = self.encoding in
+
   let@ self = Lock.with_lock self.st in
   match Int32_tbl.find_opt self.in_flight meta.id with
   | None ->
-    Framing.read_and_discard ~buf_pool ~meta ~encoding ic;
+    Framing.read_and_discard ~config ~encoding ~meta ic;
     Log.err (fun k -> k "client: received error: no request had id %ld" meta.id)
   | Some (IF_unary { promise; bt; _ }) ->
     remove_from_tbl_ self meta.id;
-    let err = Framing.read_error ~buf_pool ic ~encoding ~meta in
+    let err = Framing.read_error ~config ~encoding ic ~meta in
     let err = Error.mk_error ~kind:Errors.remote err.msg in
     Log.err (fun k ->
         k "client: received error for id %ld:@ %a" meta.id Error.pp err);
     Fut.fulfill_idempotent promise (Error (Error.E err, bt))
   | Some (IF_stream { bt; promise; _ }) ->
     remove_from_tbl_ self meta.id;
-    let err = Framing.read_error ~buf_pool ~encoding ic ~meta in
+    let err = Framing.read_error ~config ~encoding ic ~meta in
     let err = Error.mk_error ~kind:Errors.remote err.msg in
     Log.err (fun k ->
         k "client: received error for id %ld:@ %a" meta.id Error.pp err);
@@ -164,24 +176,25 @@ let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.t) :
     _ Handler.t =
   m.handle rpc h
 
-let create ?(middlewares = []) ~default_timeout_s () : t =
+let create ?(middlewares = []) ~default_timeout_s ~framing_config:config
+    ~encoding () : t =
   {
+    config;
+    default_timeout_s;
+    encoding;
     st =
       Lock.create
         {
           (* leave id=0 for hearbeats and the likes *)
           counter = 1;
           middlewares;
-          default_timeout_s;
           in_flight = Int32_tbl.create 8;
         };
   }
 
 (** Call [f] with a protobuf encoder *)
-let with_pbrt_enc_ ?buf_pool () f =
-  match buf_pool with
-  | None -> f (Pbrt.Encoder.create ())
-  | Some pool -> Buf_pool.with_enc pool f
+let[@inline] with_pbrt_enc_ (self : t) f =
+  Buf_pool.with_enc self.config.buf_pool f
 
 let check_timeout_ timeout_s =
   if timeout_s < 0.001 then invalid_arg "BatRPC.Client: timeout must be >= 1ms."
@@ -205,16 +218,16 @@ let prepare_query_ (self : state) ~(rpc : _ Service.Client.rpc) ~headers
   id, meta
 
 (** Write request to [oc] in as small a critical section as possible *)
-let send_request_ ?buf_pool ~oc ~encoding ~meta ~rpc req : unit =
-  let@ enc = with_pbrt_enc_ ?buf_pool () in
+let send_request_ (self : t) ~oc ~meta ~rpc req : unit =
+  let@ enc = with_pbrt_enc_ self in
   Pbrt.Encoder.clear enc;
 
   let@ oc = Lock.with_lock oc in
-  Framing.write_req ~enc ~encoding oc rpc meta req;
+  Framing.write_req ~enc ~config:self.config ~encoding:self.encoding oc rpc meta
+    req;
   oc#flush ()
 
-let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc :
-    _ Handler.t =
+let mk_unary_handler (self : t) ~timer ~oc ~timeout_s rpc : _ Handler.t =
  fun (ctx, req) : _ Fut.t ->
   (* TODO: can we just avoid that? *)
   let bt = Printexc.get_callstack 5 in
@@ -233,26 +246,24 @@ let mk_unary_handler (self : t) ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc :
   (* setup timeout *)
   Timer.run_after_s timer timeout_s (fun () -> handle_timeout self id);
 
-  send_request_ ?buf_pool ~rpc ~oc ~encoding ~meta req;
+  send_request_ self ~rpc ~oc ~meta req;
   fut
 
-let send_heartbeat ~buf_pool ~oc ~encoding () : unit =
+let send_heartbeat (self : t) ~oc () : unit =
   let meta = Meta.make_meta ~id:0l ~kind:Meta.Heartbeat ~headers:[] () in
   let@ oc = Lock.with_lock oc in
-  Framing.write_empty ~buf_pool ~encoding oc meta ();
+  Framing.write_empty ~config:self.config ~encoding:self.encoding oc meta ();
   oc#flush ()
 
 let get_timeout_s_ (self : t) ?timeout_s () : float =
   match timeout_s with
   | Some t -> t
-  | None -> (Lock.get self.st).default_timeout_s
+  | None -> self.default_timeout_s
 
-let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t) ~encoding
-    ?(headers = []) ?timeout_s rpc req : _ Fut.t =
+let call (self : t) ~timer ~(oc : #Io.Out.t Lock.t) ?(headers = []) ?timeout_s
+    rpc req : _ Fut.t =
   let timeout_s = get_timeout_s_ self ?timeout_s () in
-  let initial_handler =
-    mk_unary_handler self ?buf_pool ~timer ~oc ~encoding ~timeout_s rpc
-  in
+  let initial_handler = mk_unary_handler self ~timer ~oc ~timeout_s rpc in
   let handler =
     List.fold_left (apply_middleware rpc) initial_handler
       (Lock.get self.st).middlewares
@@ -261,8 +272,8 @@ let call (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t) ~encoding
   let ctx = { Handler.headers; hmap = Hmap.empty } in
   handler (ctx, req) |> Fut.map ~f:snd
 
-let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
-    ~encoding ?(headers = []) ?timeout_s
+let call_client_stream (self : t) ~timer ~(oc : #Io.Out.t Lock.t)
+    ?(headers = []) ?timeout_s
     (rpc :
       ( 'req,
         Service.Value_mode.stream,
@@ -291,11 +302,12 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
 
   (* now write call to [oc] in as small a critical section as possible *)
   let () =
-    let@ enc = with_pbrt_enc_ ?buf_pool () in
+    let@ enc = with_pbrt_enc_ self in
     Pbrt.Encoder.clear enc;
 
     let@ oc = Lock.with_lock oc in
-    Framing.write_empty ~enc ~encoding oc meta ();
+    Framing.write_empty ~config:self.config ~encoding:self.encoding ~enc oc meta
+      ();
     oc#flush ()
   in
 
@@ -306,11 +318,12 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
     in
     let meta = Meta.make_meta ~id ~kind:Client_stream_item ~headers () in
 
-    let@ enc = with_pbrt_enc_ ?buf_pool () in
+    let@ enc = with_pbrt_enc_ self in
     Pbrt.Encoder.clear enc;
 
     let@ oc = Lock.with_lock oc in
-    Framing.write_req ~enc oc ~encoding rpc meta item;
+    Framing.write_req ~config:self.config ~encoding:self.encoding ~enc oc rpc
+      meta item;
     oc#flush ()
   in
 
@@ -321,11 +334,12 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
     in
     let meta = Meta.make_meta ~id ~kind:Client_stream_close ~headers () in
 
-    let@ enc = with_pbrt_enc_ ?buf_pool () in
+    let@ enc = with_pbrt_enc_ self in
     Pbrt.Encoder.clear enc;
 
     let@ oc = Lock.with_lock oc in
-    Framing.write_empty ~enc ~encoding oc meta ();
+    Framing.write_empty ~config:self.config ~encoding:self.encoding ~enc oc meta
+      ();
     oc#flush ()
   in
 
@@ -333,8 +347,8 @@ let call_client_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
   let fut = fut |> Fut.map ~f:snd in
   stream, fut
 
-let call_server_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
-    ~encoding ?(headers = []) ?timeout_s
+let call_server_stream (self : t) ~timer ~(oc : #Io.Out.t Lock.t)
+    ?(headers = []) ?timeout_s
     (rpc :
       ( 'req,
         Service.Value_mode.unary,
@@ -360,5 +374,5 @@ let call_server_stream (self : t) ?buf_pool ~timer ~(oc : #Io.Out.t Lock.t)
 
   Timer.run_after_s timer timeout_s (fun () -> handle_timeout self id);
 
-  send_request_ ?buf_pool ~oc ~encoding ~meta ~rpc req;
+  send_request_ self ~oc ~meta ~rpc req;
   fut |> Fut.map ~f:snd

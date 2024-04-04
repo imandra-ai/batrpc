@@ -4,6 +4,8 @@ type t = {
   buf_size: int;
 }
 
+let show self = spf "<buf-pool buf-size=%d>" self.buf_size
+let pp out self = Fmt.string out @@ show self
 let default_enc_size_ = 4 * 1024
 let default_buf_size_ = 16 * 1024
 

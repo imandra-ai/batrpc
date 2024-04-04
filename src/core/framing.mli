@@ -16,11 +16,22 @@
 
 open Common_
 
+type config = {
+  use_zlib: bool;  (** Use zlib compression on large messages? *)
+  zlib_compression_threshold_B: int; [@default 2 * 1024]
+      (** Size of body above which we apply zlib compression. *)
+  buf_pool: Buf_pool.t;
+}
+[@@deriving make, show]
+(** Configuration for framing in general *)
+
+val default_config : unit -> config
+
 val read_meta :
-  buf_pool:Buf_pool.t -> #Io.In.t -> encoding:Encoding.t -> Meta.meta option
+  config:config -> encoding:Encoding.t -> #Io.In.t -> Meta.meta option
 
 val read_body_req :
-  buf_pool:Buf_pool.t ->
+  config:config ->
   #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
@@ -28,7 +39,7 @@ val read_body_req :
   'req
 
 val read_body_res :
-  buf_pool:Buf_pool.t ->
+  config:config ->
   #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
@@ -36,33 +47,25 @@ val read_body_res :
   'res
 
 val read_and_discard :
-  buf_pool:Buf_pool.t ->
-  #Io.In.t ->
-  encoding:Encoding.t ->
-  meta:Meta.meta ->
-  unit
+  config:config -> #Io.In.t -> encoding:Encoding.t -> meta:Meta.meta -> unit
 (** Read message body but do not decode it. This is useful if we know we need
     to ignore it (e.g. reply to a request that timed out) but still
     need to remove bytes from the socket. *)
 
 val read_error :
-  buf_pool:Buf_pool.t ->
+  config:config ->
   #Io.In.t ->
   encoding:Encoding.t ->
   meta:Meta.meta ->
   Meta.error
 
 val read_empty :
-  buf_pool:Buf_pool.t ->
-  #Io.In.t ->
-  encoding:Encoding.t ->
-  meta:Meta.meta ->
-  unit
+  config:config -> #Io.In.t -> encoding:Encoding.t -> meta:Meta.meta -> unit
 
 val write_req :
-  ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
   #Io.Out.t ->
+  config:config ->
   encoding:Encoding.t ->
   ('req, _, _, _) Service.Client.rpc ->
   Meta.meta ->
@@ -70,27 +73,27 @@ val write_req :
   unit
 
 val write_error :
-  ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
   #Io.Out.t ->
+  config:config ->
   encoding:Encoding.t ->
   Meta.meta ->
   Meta.error ->
   unit
 
 val write_empty :
-  ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
   #Io.Out.t ->
+  config:config ->
   encoding:Encoding.t ->
   Meta.meta ->
   unit ->
   unit
 
 val write_res :
-  ?buf_pool:Buf_pool.t ->
   ?enc:Pbrt.Encoder.t ->
   #Io.Out.t ->
+  config:config ->
   encoding:Encoding.t ->
   (_, _, 'res, _) Service.Server.rpc ->
   Meta.meta ->

@@ -5,61 +5,27 @@ type t
     in-flight requests and active streams. *)
 
 val create :
-  ?middlewares:Middleware.t list -> default_timeout_s:float -> unit -> t
+  ?middlewares:Middleware.t list ->
+  default_timeout_s:float ->
+  framing_config:Framing.config ->
+  encoding:Encoding.t ->
+  unit ->
+  t
 (** New client state *)
 
 val add_middleware : t -> Middleware.t -> unit
+val handle_response : t -> meta:Meta.meta -> ic:#Io.In.t -> unit -> unit
+val handle_error : t -> meta:Meta.meta -> ic:#Io.In.t -> unit -> unit
+val handle_stream_item : t -> meta:Meta.meta -> ic:#Io.In.t -> unit -> unit
+val handle_stream_close : t -> meta:Meta.meta -> ic:#Io.In.t -> unit -> unit
 
-val handle_response :
-  t ->
-  buf_pool:Buf_pool.t ->
-  meta:Meta.meta ->
-  ic:#Io.In.t ->
-  encoding:Encoding.t ->
-  unit ->
-  unit
-
-val handle_error :
-  t ->
-  buf_pool:Buf_pool.t ->
-  meta:Meta.meta ->
-  ic:#Io.In.t ->
-  encoding:Encoding.t ->
-  unit ->
-  unit
-
-val handle_stream_item :
-  t ->
-  buf_pool:Buf_pool.t ->
-  meta:Meta.meta ->
-  ic:#Io.In.t ->
-  encoding:Encoding.t ->
-  unit ->
-  unit
-
-val handle_stream_close :
-  t ->
-  buf_pool:Buf_pool.t ->
-  meta:Meta.meta ->
-  ic:#Io.In.t ->
-  encoding:Encoding.t ->
-  unit ->
-  unit
-
-val send_heartbeat :
-  buf_pool:Buf_pool.t ->
-  oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
-  unit ->
-  unit
+val send_heartbeat : t -> oc:#Io.Out.t Lock.t -> unit -> unit
 (** Send a heartbeat message *)
 
 val call :
   t ->
-  ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
   oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,
@@ -73,10 +39,8 @@ val call :
 
 val call_client_stream :
   t ->
-  ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
   oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,
@@ -93,10 +57,8 @@ val call_client_stream :
 
 val call_server_stream :
   t ->
-  ?buf_pool:Buf_pool.t ->
   timer:Timer.t ->
   oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
   ?headers:Meta.header list ->
   ?timeout_s:float ->
   ( 'req,

@@ -59,6 +59,7 @@ val mk_server_stream_handler :
 val create :
   ?middlewares:Middleware.t list ->
   services:handler Service.Server.t list ->
+  framing_config:Framing.config ->
   unit ->
   t
 
@@ -68,21 +69,16 @@ val list_services : t -> handler Service.Server.t list
 val find_meth : t -> string -> (string * handler) option
 
 val send_heartbeat :
-  buf_pool:Buf_pool.t ->
-  oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
-  unit ->
-  unit
+  t -> encoding:Encoding.t -> oc:#Io.Out.t Lock.t -> unit -> unit
 (** Send a heartbeat message *)
 
 val handle_request :
   t ->
+  encoding:Encoding.t ->
   runner:Runner.t ->
-  buf_pool:Buf_pool.t ->
   meta:Meta.meta ->
   ic:#Io.In.t ->
   oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
   unit ->
   unit
 (** We have read, from [ic], the metadata for a new message
@@ -93,11 +89,10 @@ val handle_request :
 
 val handle_stream_item :
   t ->
-  buf_pool:Buf_pool.t ->
+  encoding:Encoding.t ->
   meta:Meta.meta ->
   ic:#Io.In.t ->
   oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
   unit ->
   unit
 (** Handle stream close, in the current thread. We must preserve the order of
@@ -105,11 +100,10 @@ val handle_stream_item :
 
 val handle_stream_close :
   t ->
-  buf_pool:Buf_pool.t ->
+  encoding:Encoding.t ->
   meta:Meta.meta ->
   ic:#Io.In.t ->
   oc:#Io.Out.t Lock.t ->
-  encoding:Encoding.t ->
   unit ->
   unit
 (** Handle stream close, in the current thread. We must preserve the order of

@@ -25,8 +25,9 @@ let terminate self : unit =
 let add_middleware self m = Server.State.add_middleware self.st m
 
 let create ?server_state ?(on_new_client = fun _ _ -> ())
-    ?(config_socket = ignore) ?(reuseaddr = true) ?(middlewares = []) ~active
-    ~runner ~timer ~services (addr : Unix.sockaddr) : t Error.result =
+    ?(config_socket = ignore) ?(reuseaddr = true) ?(middlewares = [])
+    ?(config = Server.Config.default) ~active ~runner ~timer ~services
+    (addr : Unix.sockaddr) : t Error.result =
   let@ () = Error.try_catch ~kind:Errors.network () in
   let kind = Util_sockaddr.kind addr in
   let sock = Unix.socket kind Unix.SOCK_STREAM 0 in
@@ -45,12 +46,15 @@ let create ?server_state ?(on_new_client = fun _ _ -> ())
 
   let buf_pool = Buf_pool.create () in
 
+  let framing_config =
+    Framing.make_config ~use_zlib:config.use_zlib ~buf_pool ()
+  in
   let st =
     match server_state with
     | Some s ->
       List.iter (Server.State.add_service s) services;
       s
-    | None -> Server.State.create ~services ()
+    | None -> Server.State.create ~framing_config ~services ()
   in
 
   let self =
