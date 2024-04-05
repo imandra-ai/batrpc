@@ -32,9 +32,14 @@ open struct
       Log.debug (fun k -> k "invalid json:@.%s@." str);
       Error.raise_err err
 
+  let[@inline] add_recv n = Net_stats.add Net_stats.m_received n
+  let[@inline] add_sent n = Net_stats.add Net_stats.m_sent n
+
   let read_line_exn_ (ic : #Io.In.t) : string =
     match Io.In.input_line ic with
-    | Some s -> s
+    | Some s ->
+      add_recv (String.length s + 1);
+      s
     | None -> Error.fail ~kind:Errors.network "Could not read next line"
 end
 
@@ -51,13 +56,17 @@ let default_config () : config =
 
 let read_meta_b ~(config : config) (ic : #Io.In.t) : Meta.meta option =
   let size_buf = Bytes.create 2 in
-  match Io.In.really_input ic size_buf 0 2 with
+  match
+    Io.In.really_input ic size_buf 0 2;
+    add_recv 2
+  with
   | exception End_of_file -> None
   | () ->
     let size = Bytes.get_int16_le size_buf 0 in
     let meta =
       let@ buf = Buf_pool.with_buf config.buf_pool size in
       Io.In.really_input ic buf 0 size;
+      add_recv size;
       let dec = Pbrt.Decoder.of_subbytes buf 0 size in
       Meta.decode_pb_meta dec
     in
@@ -67,7 +76,9 @@ let read_meta_b ~(config : config) (ic : #Io.In.t) : Meta.meta option =
 let read_meta_j (ic : #Io.In.t) : Meta.meta option =
   match Io.In.input_line ic with
   | None -> None
-  | Some j -> Some (decode_json_ Meta.decode_json_meta j)
+  | Some j ->
+    add_recv (String.length j + 1);
+    Some (decode_json_ Meta.decode_json_meta j)
 
 let read_meta ~config ~encoding ic : _ option =
   match encoding with
@@ -80,6 +91,7 @@ let read_with_dec_ ~config ic ~(meta : Meta.meta) ~what ~f_dec =
   let@ buf = Buf_pool.with_buf config.buf_pool body_size in
   assert (Bytes.length buf >= body_size);
   Io.In.really_input ic buf 0 body_size;
+  add_recv body_size;
 
   (* decompress if needed *)
   let buf, body_size =
@@ -144,7 +156,8 @@ let read_and_discard ~config ic ~encoding ~(meta : Meta.meta) : unit =
   | Encoding.Binary ->
     let body_size = meta.body_size |> unwrap_body_size in
     let@ buf = Buf_pool.with_buf config.buf_pool body_size in
-    Io.In.really_input ic buf 0 body_size
+    Io.In.really_input ic buf 0 body_size;
+    add_recv body_size
   | Encoding.Json -> ignore (read_line_exn_ ic : string)
 
 let read_empty ~config (ic : #Io.In.t) ~encoding ~(meta : Meta.meta) =
@@ -183,14 +196,17 @@ let write_meta_b ~enc oc meta : unit =
   (* write framing *)
   let buf2 = Bytes.create 2 in
   Bytes.set_int16_le buf2 0 (Bytes.length buf);
-  oc#output buf2 0 2;
+  Io.Out.output oc buf2 0 2;
+  add_sent 2;
 
   (* write meta *)
-  oc#output buf 0 (Bytes.length buf)
+  Io.Out.output oc buf 0 (Bytes.length buf);
+  add_sent (Bytes.length buf)
 
 let write_meta_j_ oc meta : unit =
   let j = Meta.encode_json_meta meta |> Yojson.Basic.to_string in
-  Io.Out.output_line oc j
+  Io.Out.output_line oc j;
+  add_sent (String.length j + 1)
 
 let write_with_b_ ?enc (oc : #Io.Out.t) ~(config : config) ~(meta : Meta.meta)
     ~f_enc x : unit =
@@ -222,7 +238,8 @@ let write_with_b_ ?enc (oc : #Io.Out.t) ~(config : config) ~(meta : Meta.meta)
     { meta with Meta.body_compression; body_size = Some body_size }
   in
   write_meta_b ~enc oc meta;
-  oc#output body_str 0 (Bytes.length body_str);
+  Io.Out.output oc body_str 0 (Bytes.length body_str);
+  add_sent (Bytes.length body_str);
   ()
 
 let write_with_j_ (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x : unit =
@@ -232,7 +249,8 @@ let write_with_j_ (oc : #Io.Out.t) ~(meta : Meta.meta) ~f_enc x : unit =
   in
   write_meta_j_ oc meta;
   let j = f_enc x |> Yojson.Basic.to_string in
-  Io.Out.output_line oc j
+  Io.Out.output_line oc j;
+  add_sent (String.length j + 1)
 
 let write_req ?enc (oc : #Io.Out.t) ~(config : config) ~encoding
     (rpc : _ Service.Client.rpc) meta req : unit =

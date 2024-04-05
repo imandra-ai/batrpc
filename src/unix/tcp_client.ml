@@ -18,11 +18,8 @@ let connect ?active ?buf_pool ?(middlewares = []) ?(encoding = Encoding.Binary)
 
   Unix.connect sock addr;
 
-  let ic =
-    new Io.In.of_fd
-      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.m_received sock
-  in
-  let oc = new Io.Out.of_fd ~close_noerr:true ~n_sent:Net_stats.m_sent sock in
+  let ic = new Io.In.of_fd ~shutdown:true ~close_noerr:true sock in
+  let oc = new Io.Out.of_fd ~close_noerr:true sock in
   (* wire format negociation *)
   Encoding.write_to_oc oc encoding;
 

@@ -81,15 +81,8 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
   Unix.setsockopt client_sock Unix.TCP_NODELAY true;
   Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
 
-  let ic =
-    new Io.In.of_fd
-      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.m_received
-      client_sock
-  in
-  let oc =
-    new Io.Out.of_fd
-      ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.m_sent client_sock
-  in
+  let ic = new Io.In.of_fd ~shutdown:true ~close_noerr:true client_sock in
+  let oc = new Io.Out.of_fd ~shutdown:true ~close_noerr:true client_sock in
 
   let magic_number =
     let bs4 = Bytes.create 4 in

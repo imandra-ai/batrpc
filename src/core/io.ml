@@ -8,8 +8,8 @@ module In = struct
 
   class of_str (str : string) : t = of_string str
 
-  class of_fd ?(shutdown = false) ?n_received ?(close_noerr = false)
-    (fd : Unix.file_descr) : t =
+  class of_fd ?(shutdown = false) ?(close_noerr = false) (fd : Unix.file_descr) :
+    t =
     let eof = ref false in
     object
       inherit t_from_refill ()
@@ -18,8 +18,7 @@ module In = struct
         if not !eof then (
           slice.len <- Unix.read fd slice.bytes 0 (Bytes.length slice.bytes);
           slice.off <- 0;
-          if slice.len = 0 then eof := true;
-          Net_stats.add_opt n_received slice.len
+          if slice.len = 0 then eof := true
         )
 
       method close () =
@@ -57,8 +56,8 @@ end
 module Out = struct
   include Iostream.Out_buf
 
-  class of_fd ?(shutdown = false) ?n_sent ?(close_noerr = false)
-    (fd : Unix.file_descr) : t =
+  class of_fd ?(shutdown = false) ?(close_noerr = false) (fd : Unix.file_descr) :
+    t =
     object
       inherit t_from_output ()
 
@@ -69,8 +68,7 @@ module Out = struct
           let n = Unix.write fd bs !i !len in
           i := !i + n;
           len := !len - n
-        done;
-        Net_stats.add_opt n_sent len0
+        done
 
       method private close_underlying () =
         if shutdown then (
