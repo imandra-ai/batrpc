@@ -10,7 +10,6 @@
   trace.core
   imandrakit
   imandrakit.thread
-  batrpc.util
   batrpc.core
   iostream
   pbrt
