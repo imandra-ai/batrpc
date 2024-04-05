@@ -20,9 +20,9 @@ let connect ?active ?buf_pool ?(middlewares = []) ?(encoding = Encoding.Binary)
 
   let ic =
     new Io.In.of_fd
-      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received sock
+      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.m_received sock
   in
-  let oc = new Io.Out.of_fd ~close_noerr:true ~n_sent:Net_stats.n_sent sock in
+  let oc = new Io.Out.of_fd ~close_noerr:true ~n_sent:Net_stats.m_sent sock in
   (* wire format negociation *)
   Encoding.write_to_oc oc encoding;
 

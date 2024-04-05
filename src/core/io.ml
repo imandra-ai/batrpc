@@ -19,7 +19,7 @@ module In = struct
           slice.len <- Unix.read fd slice.bytes 0 (Bytes.length slice.bytes);
           slice.off <- 0;
           if slice.len = 0 then eof := true;
-          Byte_counter.add_opt n_received slice.len
+          Net_stats.add_opt n_received slice.len
         )
 
       method close () =
@@ -70,7 +70,7 @@ module Out = struct
           i := !i + n;
           len := !len - n
         done;
-        Byte_counter.add_opt n_sent len0
+        Net_stats.add_opt n_sent len0
 
       method private close_underlying () =
         if shutdown then (

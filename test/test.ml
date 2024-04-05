@@ -243,10 +243,7 @@ let t_with_pipe ~encoding () =
   ()
 
 let port = try Sys.getenv "TEST_PORT" |> int_of_string with _ -> 123456
-
-let log_net_stats () =
-  Trace.counter_int "net.sent" (RPC.Net_stats.get_n_sent ());
-  Trace.counter_int "net.received" (RPC.Net_stats.get_n_received ())
+let log_net_stats () = Imandrakit_metrics.emit_trace ()
 
 let t_tcp ~encoding ~stress_n () =
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main.tcp" in

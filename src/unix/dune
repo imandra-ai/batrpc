@@ -9,9 +9,7 @@
   -open
   Imandrakit_thread
   -open
-  Batrpc_core
-  -open
-  Batrpc_util)
+  Batrpc_core)
  (libraries
   (re_export batrpc.core)
   batrpc.client

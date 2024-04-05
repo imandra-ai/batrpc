@@ -83,12 +83,12 @@ let handle_client_async_ (self : t) client_sock client_addr : unit =
 
   let ic =
     new Io.In.of_fd
-      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.n_received
+      ~shutdown:true ~close_noerr:true ~n_received:Net_stats.m_received
       client_sock
   in
   let oc =
     new Io.Out.of_fd
-      ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.n_sent client_sock
+      ~shutdown:true ~close_noerr:true ~n_sent:Net_stats.m_sent client_sock
   in
 
   let magic_number =

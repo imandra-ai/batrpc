@@ -1,8 +1,14 @@
 (** Network metrics *)
 
-module Byte_counter = Batrpc_util.Byte_counter
+module M = Imandrakit_metrics
 
-let n_sent : Byte_counter.t = Byte_counter.create ()
-let n_received : Byte_counter.t = Byte_counter.create ()
-let[@inline] get_n_sent () : int = Byte_counter.get n_sent
-let[@inline] get_n_received () : int = Byte_counter.get n_received
+type t = int M.Counter.t
+
+let m_received : t = M.Counter.create_int "rpc.received.B"
+let m_sent : t = M.Counter.create_int "rpc.sent.B"
+let add : t -> int -> unit = M.Counter.incr_by
+
+let[@inline] add_opt (self : t option) (n : int) : unit =
+  match self with
+  | None -> ()
+  | Some c -> M.Counter.incr_by c n

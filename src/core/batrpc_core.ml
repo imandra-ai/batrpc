@@ -21,7 +21,6 @@ end)
 
 module Service = Pbrt_services
 module Runner = Moonpool.Runner
-module Byte_counter = Batrpc_util.Byte_counter
 module Meta = Meta
 module Log_rpc = Common_.Log
 
