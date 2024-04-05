@@ -39,7 +39,7 @@ open struct
 end
 
 type config = {
-  use_zlib: bool;
+  use_zlib: bool; [@default true]
   zlib_compression_threshold_B: int; [@default 2 * 1024]
   buf_pool: Buf_pool.t;
 }

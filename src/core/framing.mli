@@ -17,7 +17,8 @@
 open Common_
 
 type config = {
-  use_zlib: bool;  (** Use zlib compression on large messages? *)
+  use_zlib: bool; [@default true]
+      (** Use zlib compression on large messages? *)
   zlib_compression_threshold_B: int; [@default 2 * 1024]
       (** Size of body above which we apply zlib compression. *)
   buf_pool: Buf_pool.t;
