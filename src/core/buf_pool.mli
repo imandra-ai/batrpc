@@ -3,7 +3,7 @@
 type t [@@deriving show]
 (** The pool of encoders and buffers. Thread-safe. *)
 
-val create : ?enc_size:int -> ?buf_size:int -> unit -> t
+val create : ?max_size:int -> ?enc_size:int -> ?buf_size:int -> unit -> t
 (** New pool *)
 
 val with_enc : t -> (Pbrt.Encoder.t -> 'a) -> 'a

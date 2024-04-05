@@ -9,14 +9,14 @@ let pp out self = Fmt.string out @@ show self
 let default_enc_size_ = 4 * 1024
 let default_buf_size_ = 16 * 1024
 
-let create ?(enc_size = default_enc_size_) ?(buf_size = default_buf_size_) () :
-    t =
+let create ?(max_size = 24) ?(enc_size = default_enc_size_)
+    ?(buf_size = default_buf_size_) () : t =
   let enc =
     Apool.create ~clear:Pbrt.Encoder.reset
       ~mk_item:(fun () -> Pbrt.Encoder.create ~size:enc_size ())
-      ~max_size:24 ()
+      ~max_size ()
   and bufs =
-    Apool.create ~mk_item:(fun () -> Bytes.create buf_size) ~max_size:24 ()
+    Apool.create ~mk_item:(fun () -> Bytes.create buf_size) ~max_size ()
   in
   { enc; bufs; buf_size }
 
