@@ -2,14 +2,7 @@
  (name batrpc_unix)
  (public_name batrpc.unix)
  (synopsis "RPC over unix sockets and pipes.")
- (flags
-  :standard
-  -open
-  Imandrakit
-  -open
-  Imandrakit_thread
-  -open
-  Batrpc_core)
+ (flags :standard -open Imandrakit -open Imandrakit_thread -open Batrpc_core)
  (libraries
   (re_export batrpc.core)
   batrpc.client
