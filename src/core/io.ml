@@ -8,11 +8,11 @@ module In = struct
 
   class of_str (str : string) : t = of_string str
 
-  class of_fd ?(shutdown = false) ?(close_noerr = false) (fd : Unix.file_descr) :
-    t =
+  class of_fd ?(shutdown = false) ?(close_noerr = false) ?bytes
+    (fd : Unix.file_descr) : t =
     let eof = ref false in
     object
-      inherit t_from_refill ()
+      inherit t_from_refill ?bytes ()
 
       method private refill (slice : Slice.t) =
         if not !eof then (
@@ -30,6 +30,30 @@ module In = struct
           try Unix.close fd with _ -> ()
         ) else
           Unix.close fd
+    end
+
+  (** [instrument ic ~on_read] makes a new buffered input stream.
+      @param on_read is called at every read from [ic]. *)
+  class instrument ?bytes (ic : #Iostream.In.t)
+    ~(on_read : bytes -> int -> int -> unit) : t =
+    let eof = ref false in
+    object
+      inherit t_from_refill ?bytes ()
+
+      method close () =
+        eof := true;
+        Iostream.In.close ic
+
+      method private refill (slice : Slice.t) =
+        if not !eof then (
+          let n =
+            Iostream.In.input ic slice.bytes 0 (Bytes.length slice.bytes)
+          in
+          slice.len <- n;
+          on_read slice.bytes 0 n;
+
+          if slice.len = 0 then eof := true
+        )
     end
 
   let read_lines (self : #t) : string list =
@@ -79,6 +103,21 @@ module Out = struct
           try Unix.close fd with _ -> ()
         ) else
           Unix.close fd
+    end
+
+  (** [instrument oc ~on_write] returns a new output stream
+      that forwards to [oc].
+      @param on_write is called at every write. *)
+  class instrument (oc : #Iostream.Out.t)
+    ~(on_write : bytes -> int -> int -> unit) : t =
+    object
+      inherit t_from_output ()
+
+      method private output_underlying bs i len =
+        on_write bs i len;
+        Iostream.Out.output oc bs i len
+
+      method private close_underlying () = Iostream.Out.close oc
     end
 
   let output_line (self : #t) str : unit =
