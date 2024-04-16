@@ -3,15 +3,17 @@ open Common_
 exception Closed
 
 type 'a with_ctx = Handler.ctx * 'a
+type lifecycle_event = Lifecycle.event [@@deriving show]
+type lifecycle_state = Lifecycle.state [@@deriving show]
 
 type t = {
   active: Switch.t option;
-  is_open: bool Atomic.t;
-  other_side_did_close: bool Atomic.t;
   timer: Timer.t;
   st: State.t;
+  lst: lifecycle_state Atomic.t;
   ic: Io.In.t;  (** Input stream. Only read by the background worker. *)
   oc: Io.Out.t Lock.t;  (** Output stream, shared between many tasks *)
+  on_event: lifecycle_event Observer.t;
   encoding: Encoding.t;
   framing_config: Framing.config;
   on_close_promise: unit Fut.promise;
@@ -20,9 +22,18 @@ type t = {
       (** background thread to receive messages from the other side. *)
 }
 
-let on_close self = self.on_close
-let state self = self.st
-let active self = self.active
+let[@inline] lifecycle_state (self : t) = Atomic.get self.lst
+let[@inline] on_close self = self.on_close
+let[@inline] state self = self.st
+let[@inline] active self = self.active
+let[@inline] on_event self = self.on_event
+
+(** Change the current state using [f] *)
+let transition_state (self : t) f =
+  let res, old_st, new_st = Atomic_util.modify_with self.lst f in
+  if not (Lifecycle.equal_state old_st new_st) then
+    Observer.emit self.on_event (Lifecycle.Set_state new_st);
+  res
 
 (** run [f()] and, if it fails, log a warning. *)
 let with_logging_error_as_warning_ what f =
@@ -32,14 +43,15 @@ let with_logging_error_as_warning_ what f =
     let err = Error.of_exn ~bt ~kind:Errors.network exn in
     Log.warn (fun k -> k "Rpc_conn: %s:@ %a" what Error.pp err)
 
-let close_real_ ~join_bg self : unit =
+let close_real_ ~join_bg ~send_close self : unit =
+  let@ () = with_logging_error_as_warning_ "failure when closing" in
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.client.close" in
 
   let () =
     let@ oc = Lock.with_lock self.oc in
 
     (* send a "close" message. *)
-    if not (Atomic.get self.other_side_did_close) then (
+    if send_close then (
       let@ () =
         with_logging_error_as_warning_ "could not send 'close' message"
       in
@@ -65,9 +77,16 @@ let close_real_ ~join_bg self : unit =
   Fut.fulfill_idempotent self.on_close_promise @@ Ok ()
 
 let close_ ~join_bg self =
-  if Atomic.exchange self.is_open false then
-    let@ () = with_logging_error_as_warning_ "failure when closing" in
-    close_real_ ~join_bg self
+  let action =
+    transition_state self (function
+      | Other_side_disconnected -> `close_silently, Disconnected
+      | Connected -> `close_and_notify, Disconnected
+      | Disconnected -> `do_nothing, Disconnected)
+  in
+  match action with
+  | `do_nothing -> ()
+  | `close_silently -> close_real_ ~join_bg ~send_close:false self
+  | `close_and_notify -> close_real_ ~join_bg ~send_close:true self
 
 (** Close connection, from the another thread. *)
 let close_and_join self = close_ ~join_bg:true self
@@ -79,8 +98,12 @@ let wait_block_close self : unit = Fut.wait_block_exn self.on_close
 
 let handle_close (self : t) : unit =
   Log.info (fun k -> k "RPC.client: remote side closed the connection");
-  Atomic.set self.other_side_did_close true;
-  close_without_joining self
+  let must_close =
+    transition_state self (function
+      | Other_side_disconnected | Disconnected -> false, Disconnected
+      | Connected -> true, Other_side_disconnected)
+  in
+  if must_close then close_without_joining self
 
 open struct
   let is_on_or_absent = function
@@ -98,7 +121,9 @@ let handle_heartbeat (self : t) ~meta : unit =
 let background_worker_loop_ (self : t) : unit =
   Trace.set_thread_name "rpc.client.bg";
   let@ () = with_logging_error_as_warning_ "running background loop" in
-  while Atomic.get self.is_open && is_on_or_absent self.active do
+  while
+    Lifecycle.can_receive (lifecycle_state self) && is_on_or_absent self.active
+  do
     match
       (* TODO: use a timeout in the read *)
       Framing.read_meta ~config:self.framing_config ~encoding:self.encoding
@@ -149,7 +174,8 @@ let send_heartbeat (self : t) : unit =
     close_ self ~join_bg:false
 
 let create ?(buf_pool = Buf_pool.create ()) ?active ?(config = Config.default)
-    ~encoding ~timer ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
+    ?(on_event = Observer.create ()) ?(track_io_events = false) ~encoding ~timer
+    ~(ic : #Io.In.t) ~(oc : #Io.Out.t) () : t =
   let framing_config =
     Framing.make_config ~buf_pool ~use_zlib:config.use_zlib ()
   in
@@ -161,14 +187,30 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?(config = Config.default)
   let ic = (ic :> Io.In.t) in
   let oc = (oc :> Io.Out.t) in
 
+  let ic, oc =
+    if track_io_events then (
+      (* reflect IO operations in [on_event] *)
+      let ic =
+        new Io.In.instrument ic ~on_read:(fun bs i len ->
+            Observer.emit on_event (Lifecycle.Read (bs, i, len)))
+      in
+      let oc =
+        new Io.Out.instrument oc ~on_write:(fun bs i len ->
+            Observer.emit on_event (Lifecycle.Write (bs, i, len)))
+      in
+      ic, oc
+    ) else
+      ic, oc
+  in
+
   let on_close, on_close_promise = Fut.make () in
   let self =
     {
       st;
       active;
-      is_open = Atomic.make true;
-      other_side_did_close = Atomic.make false;
+      lst = Atomic.make Lifecycle.Connected;
       encoding;
+      on_event;
       framing_config;
       timer;
       ic;
@@ -199,17 +241,17 @@ let create ?(buf_pool = Buf_pool.create ()) ?active ?(config = Config.default)
 
 let call (self : t) ?headers ?timeout_s (rpc : _ Pbrt_services.Client.rpc) req :
     _ Fut.t =
-  if not (Atomic.get self.is_open) then raise Closed;
+  if not (Lifecycle.can_send @@ lifecycle_state self) then raise Closed;
   State.call self.st ~timer:self.timer ?headers ?timeout_s ~oc:self.oc rpc req
 
 let call_client_stream (self : t) ?headers ?timeout_s
     (rpc : _ Pbrt_services.Client.rpc) : _ Push_stream.t * _ Fut.t =
-  if not (Atomic.get self.is_open) then raise Closed;
+  if not (Lifecycle.can_send @@ lifecycle_state self) then raise Closed;
   State.call_client_stream self.st ~timer:self.timer ?headers ?timeout_s
     ~oc:self.oc rpc
 
 let call_server_stream (self : t) ?headers ?timeout_s
     (rpc : _ Pbrt_services.Client.rpc) ~init ~on_item ~on_close req : _ Fut.t =
-  if not (Atomic.get self.is_open) then raise Closed;
+  if not (Lifecycle.can_send @@ lifecycle_state self) then raise Closed;
   State.call_server_stream self.st ~timer:self.timer ?headers ?timeout_s
     ~oc:self.oc rpc ~init ~on_item ~on_close req
