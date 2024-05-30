@@ -347,8 +347,8 @@ let () =
   let opts = [ "-d", Arg.Set debug, " debug" ] |> Arg.align in
   Arg.parse opts ignore "";
   if !debug then (
-    Logger.setup_level ~debug:true ();
-    Logger.setup_logger_to_stderr ()
+    Imandrakit_log.Logger.setup_level ~debug:true ();
+    Imandrakit_log.Logger.setup_logger_to_stderr ()
   );
 
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "test.main" in

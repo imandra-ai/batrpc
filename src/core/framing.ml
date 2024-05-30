@@ -97,7 +97,7 @@ let read_with_dec_ ~config ic ~(meta : Meta.meta) ~what ~f_dec =
   let buf, body_size =
     match meta.body_compression with
     | Some Meta.Compression_deflate ->
-      let body = Util_zlib.decompress_slice buf 0 body_size in
+      let body = Imandrakit_zip.Util_zlib.decompress_slice buf 0 body_size in
       body, Bytes.length body
     | None | Some Meta.Compression_none -> buf, body_size
   in
