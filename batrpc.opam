@@ -48,4 +48,6 @@ dev-repo: "git+https://github.com/imandra-ai/batrpc.git"
 pin-depends: [
   ["opentelemetry.dev" "git+https://github.com/imandra-ai/ocaml-opentelemetry#main"]
   ["imandrakit.dev" "git+https://github.com/imandra-ai/imandrakit#main"]
+  ["imandrakit-log.dev" "git+https://github.com/imandra-ai/imandrakit#main"]
+  ["imandrakit-thread.dev" "git+https://github.com/imandra-ai/imandrakit#main"]
 ]
