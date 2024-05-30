@@ -9,7 +9,7 @@
  (libraries
   trace.core
   imandrakit
-  imandrakit.thread
+  imandrakit-thread
   batrpc.core
   iostream
   pbrt

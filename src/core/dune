@@ -2,7 +2,14 @@
  (name batrpc_core)
  (public_name batrpc.core)
  (synopsis "Binary RPC over streams of bytes for protobuf services.")
- (flags :standard -open Imandrakit -open Imandrakit_thread)
+ (flags
+  :standard
+  -open
+  Imandrakit
+  -open
+  Imandrakit_thread
+  -open
+  Imandrakit_zip)
  (preprocess
   (pps ppx_deriving.std))
  (libraries
@@ -10,8 +17,10 @@
   moonpool
   trace.core
   imandrakit
-  imandrakit.thread
   imandrakit.metrics
+  imandrakit.zip
+  imandrakit-thread
+  camlzip
   iostream
   pbrt
   pbrt_yojson
