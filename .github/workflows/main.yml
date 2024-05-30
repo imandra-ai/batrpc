@@ -62,6 +62,6 @@ jobs:
           dune-cache: true
           allow-prerelease-opam: true
 
-      - run: opam install ocamlformat.0.24.1
+      - run: opam install ocamlformat.0.26.2
       - run: opam exec -- make format-check
 
