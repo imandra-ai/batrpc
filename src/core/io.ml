@@ -9,7 +9,8 @@ module In = struct
   class of_str (str : string) : t = of_string str
 
   class of_fd ?(shutdown = false) ?(close_noerr = false) ?bytes
-    (fd : Unix.file_descr) : t =
+    (fd : Unix.file_descr) :
+    t =
     let eof = ref false in
     object
       inherit t_from_refill ?bytes ()
@@ -35,7 +36,8 @@ module In = struct
   (** [instrument ic ~on_read] makes a new buffered input stream.
       @param on_read is called at every read from [ic]. *)
   class instrument ?bytes (ic : #Iostream.In.t)
-    ~(on_read : bytes -> int -> int -> unit) : t =
+    ~(on_read : bytes -> int -> int -> unit) :
+    t =
     let eof = ref false in
     object
       inherit t_from_refill ?bytes ()
@@ -109,7 +111,8 @@ module Out = struct
       that forwards to [oc].
       @param on_write is called at every write. *)
   class instrument (oc : #Iostream.Out.t)
-    ~(on_write : bytes -> int -> int -> unit) : t =
+    ~(on_write : bytes -> int -> int -> unit) :
+    t =
     object
       inherit t_from_output ()
 
