@@ -34,6 +34,7 @@
  (deps
   (:file meta.proto))
  (mode promote)
+ (enabled_if %{env:FORCE_GENPROTO=false})
  (action
   (run
    ocaml-protoc
