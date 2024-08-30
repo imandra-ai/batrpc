@@ -3,4 +3,4 @@
  (public_name batrpc-otel)
  (synopsis "OTEL middleware for batrpc")
  (flags :standard -open Batrpc -open Moonpool)
- (libraries batrpc moonpool opentelemetry))
+ (libraries exn_bt batrpc moonpool opentelemetry))

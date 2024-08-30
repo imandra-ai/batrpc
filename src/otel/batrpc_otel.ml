@@ -25,7 +25,7 @@ module Util_ = struct
         let status =
           match res with
           | Ok _ -> Otel.Proto.Trace.default_status ~code:Status_code_ok ()
-          | Error (exn, _bt) ->
+          | Error { Exn_bt.exn; _ } ->
             Otel.Proto.Trace.default_status ~code:Status_code_error
               ~message:(Printexc.to_string exn) ()
         in
