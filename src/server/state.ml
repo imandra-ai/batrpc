@@ -164,8 +164,8 @@ let handle_request (self : t) ~encoding ~runner ~(meta : Meta.meta) ~ic ~oc () :
     (* when [fut] is done, send result *)
     Fut.on_result fut (function
       | Ok res -> send_response_or_error self ~encoding ~oc ~meta ~rpc (Ok res)
-      | Error { exn; bt } ->
-        let res = Error (Error.of_exn ~kind:Errors.handler ~bt exn) in
+      | Error ebt ->
+        let res = Error (Error.of_exn_bt ~kind:Errors.handler ebt) in
         send_response_or_error self ~encoding ~oc ~meta ~rpc res)
   in
 

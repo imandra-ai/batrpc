@@ -146,14 +146,14 @@ let handle_error (self : t) ~(meta : Meta.meta) ~ic () : unit =
     let err = Error.mk_error ~kind:Errors.remote err.msg in
     Log.err (fun k ->
         k "client: received error for id %ld:@ %a" meta.id Error.pp err);
-    Fut.fulfill_idempotent promise (Error { exn = Error.E err; bt })
+    Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt))
   | Some (IF_stream { bt; promise; _ }) ->
     remove_from_tbl_ self meta.id;
     let err = Framing.read_error ~config ~encoding ic ~meta in
     let err = Error.mk_error ~kind:Errors.remote err.msg in
     Log.err (fun k ->
         k "client: received error for id %ld:@ %a" meta.id Error.pp err);
-    Fut.fulfill_idempotent promise (Error { exn = Error.E err; bt })
+    Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt))
 
 let handle_timeout (self : t) id : unit =
   let@ self = Lock.with_lock self.st in
@@ -164,12 +164,12 @@ let handle_timeout (self : t) id : unit =
         remove_from_tbl_ self id;
         let err = Error.mk_error ~kind:Error_kind.timeout "Timeout" in
         Log.err (fun k -> k "client: timeout for id %ld:" id);
-        Fut.fulfill_idempotent promise (Error { exn = Error.E err; bt })
+        Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt))
       | IF_stream { promise; bt; _ } ->
         remove_from_tbl_ self id;
         let err = Error.mk_error ~kind:Error_kind.timeout "Timeout" in
         Log.err (fun k -> k "client: timeout for id %ld" id);
-        Fut.fulfill_idempotent promise (Error { exn = Error.E err; bt }))
+        Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt)))
     entry
 
 let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.t) :
