@@ -20,6 +20,8 @@ module In = struct
         if not !eof then (
           slice.len <- MIO.Unix.read fd slice.bytes 0 (Bytes.length slice.bytes);
           slice.off <- 0;
+          Printf.eprintf "READ %S\n%!"
+            (Bytes.sub_string slice.bytes 0 slice.len);
           if slice.len = 0 then eof := true
         )
 
@@ -88,6 +90,7 @@ module Out = struct
       inherit t_from_output ()
 
       method private output_underlying bs i len0 =
+        Printf.eprintf "IO OUTPUT %S\n%!" (Bytes.sub_string bs i len0);
         let i = ref i in
         let len = ref len0 in
         while !len > 0 do

@@ -118,11 +118,13 @@ let send_response_or_error (self : t) ~encoding ~oc ~(meta : Meta.meta) ~rpc
     in
 
     (* send response, atomically *)
+    Printf.eprintf "SEND RES\n%!";
     let@ oc = Lock.with_lock oc in
     Framing.write_res ~config:self.config ~encoding oc rpc meta res;
     oc#flush ()
   | Error err ->
     Log.err (fun k -> k "reply with error for id=%ld:@ %a" meta.id Error.pp err);
+    Printf.eprintf "SEND RES ERR\n%!";
     send_error self ~encoding ~oc ~meta err
 
 let send_stream_item (self : t) ~encoding ~oc ~(meta : Meta.meta) ~rpc res :
@@ -156,11 +158,13 @@ let[@inline] apply_middleware ~service_name rpc (h : _ Handler.t)
 
 let handle_request (self : t) ~encoding ~runner ~(meta : Meta.meta) ~ic ~oc () :
     unit =
+  Printf.eprintf "HANDLE REQ\n%!";
   let@ _sp = Trace.with_span ~__FILE__ ~__LINE__ "rpc.server.handle-req" in
   assert (meta.kind = Meta.Request);
 
   let compute_res_and_reply rpc (f : _ Handler.t) (ctx, req) : unit =
     let fut = f (ctx, req) in
+    Printf.eprintf "COMPUTE RES\n%!";
     (* when [fut] is done, send result *)
     Fut.on_result fut (function
       | Ok res -> send_response_or_error self ~encoding ~oc ~meta ~rpc (Ok res)

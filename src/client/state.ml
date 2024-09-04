@@ -230,6 +230,7 @@ let send_request_ (self : t) ~oc ~meta ~rpc req : unit =
   let@ enc = with_pbrt_enc_ self in
   Pbrt.Encoder.clear enc;
 
+  Printf.eprintf "SEND REQ\n%!";
   let@ oc = Lock.with_lock oc in
   Framing.write_req ~enc ~config:self.config ~encoding:self.encoding oc rpc meta
     req;
