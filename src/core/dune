@@ -15,6 +15,7 @@
  (libraries
   atomic
   moonpool
+  moonpool-io
   trace.core
   imandrakit
   imandrakit.metrics

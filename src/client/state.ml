@@ -162,12 +162,20 @@ let handle_timeout (self : t) id : unit =
     (function
       | IF_unary { promise; bt; _ } ->
         remove_from_tbl_ self id;
-        let err = Error.mk_error ~kind:Error_kind.timeout "Timeout" in
+        let err =
+          Error.mk_error
+            ~bt:(Printexc.raw_backtrace_to_string bt)
+            ~kind:Error_kind.timeout "Timeout"
+        in
         Log.err (fun k -> k "client: timeout for id %ld:" id);
         Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt))
       | IF_stream { promise; bt; _ } ->
         remove_from_tbl_ self id;
-        let err = Error.mk_error ~kind:Error_kind.timeout "Timeout" in
+        let err =
+          Error.mk_error
+            ~bt:(Printexc.raw_backtrace_to_string bt)
+            ~kind:Error_kind.timeout "Timeout"
+        in
         Log.err (fun k -> k "client: timeout for id %ld" id);
         Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt)))
     entry
@@ -281,7 +289,7 @@ let call_client_stream (self : t) ~timer ~(oc : #Io.Out.t Lock.t)
         Service.Value_mode.unary )
       Pbrt_services.Client.rpc) : 'req Push_stream.t * _ Fut.t =
   (* TODO: can we just avoid that? *)
-  let bt = Printexc.get_callstack 5 in
+  let bt = Printexc.get_callstack 10 in
 
   Option.iter check_timeout_ timeout_s;
   let fut, promise = Fut.make () in

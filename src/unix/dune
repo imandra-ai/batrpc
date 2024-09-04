@@ -8,5 +8,7 @@
   batrpc.client
   batrpc.server
   containers
+  moonpool.sync
+  moonpool-io
   threads
   unix))
