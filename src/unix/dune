@@ -8,6 +8,8 @@
   batrpc.client
   batrpc.server
   containers
+  imandrakit
+  imandrakit.metrics
   moonpool.sync
   moonpool-io
   threads
