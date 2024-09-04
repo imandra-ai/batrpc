@@ -27,6 +27,7 @@
     (pbrt_yojson (>= 3.0))
     (pbrt_services (>= 3.0))
     (moonpool (>= 0.5))
+    (moonpool-io (>= 0.7))
     (containers (and (>= 3.0) :with-test))
     (trace-tef :with-test)
     (mtime (>= 2.0))
