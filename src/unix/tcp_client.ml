@@ -15,7 +15,6 @@ let connect ?active ?buf_pool ?(middlewares = []) ?(encoding = Encoding.Binary)
   let sock = MIO.Unix.socket kind Unix.SOCK_STREAM 0 in
 
   MIO.Unix.setsockopt sock Unix.TCP_NODELAY true;
-  Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
 
   MIO.Unix.connect sock addr;
 

@@ -80,7 +80,6 @@ let create ?server_state ?(on_new_client = fun _ _ -> ())
     actual work will happen in the new RPC conn. *)
 let handle_client_async_ (self : t) client_sock client_addr : unit =
   MIO.Unix.setsockopt client_sock Unix.TCP_NODELAY true;
-  Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
 
   let ic = new Io.In.of_fd ~shutdown:true ~close_noerr:true client_sock in
   let oc = new Io.Out.of_fd ~shutdown:true ~close_noerr:true client_sock in
