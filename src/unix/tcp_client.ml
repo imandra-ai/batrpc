@@ -1,3 +1,4 @@
+open Common_
 module C = Batrpc_client
 
 type t = C.t
@@ -11,12 +12,11 @@ let connect ?active ?buf_pool ?(middlewares = []) ?(encoding = Encoding.Binary)
   let@ () = Error.try_catch ~kind:Errors.network () in
 
   let kind = Util_sockaddr.kind addr in
-  let sock = Unix.socket kind Unix.SOCK_STREAM 0 in
+  let sock = MIO.Unix.socket kind Unix.SOCK_STREAM 0 in
 
-  Unix.setsockopt sock Unix.TCP_NODELAY true;
-  Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
+  MIO.Unix.setsockopt sock Unix.TCP_NODELAY true;
 
-  Unix.connect sock addr;
+  MIO.Unix.connect sock addr;
 
   let ic = new Io.In.of_fd ~shutdown:true ~close_noerr:true sock in
   let oc = new Io.Out.of_fd ~close_noerr:true sock in

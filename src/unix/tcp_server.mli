@@ -3,6 +3,7 @@
     The server will spawn a thread per client connection, and use
     an executor to handle individual requests from each client. *)
 
+open Common_
 module Server = Batrpc_server
 
 type conn = Server.For_client.t
@@ -14,7 +15,7 @@ type t
 val create :
   ?server_state:Server.State.t ->
   ?on_new_client:(conn -> Unix.sockaddr -> unit) ->
-  ?config_socket:(Unix.file_descr -> unit) ->
+  ?config_socket:(Fd.t -> unit) ->
   ?reuseaddr:bool ->
   ?middlewares:Server.Middleware.t list ->
   ?config:Server.Config.t ->

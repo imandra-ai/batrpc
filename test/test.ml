@@ -341,6 +341,7 @@ let t_tcp ~encoding ~stress_n () =
 
 let () =
   let@ () = Trace_tef.with_setup () in
+  Moonpool_io.configure ();
   Trace.set_thread_name "main";
 
   let debug = ref false in

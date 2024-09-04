@@ -1,6 +1,8 @@
 (** IO primitives *)
 
 module Slice = Iostream.Slice
+module MIO = Moonpool_io
+module Fd = Moonpool_io.Fd
 
 (** Input stream *)
 module In = struct
@@ -8,29 +10,30 @@ module In = struct
 
   class of_str (str : string) : t = of_string str
 
-  class of_fd ?(shutdown = false) ?(close_noerr = false) ?bytes
-    (fd : Unix.file_descr) :
-    t =
+  class of_fd ?(shutdown = false) ?(close_noerr = false) ?bytes (fd : Fd.t) : t
+    =
     let eof = ref false in
     object
       inherit t_from_refill ?bytes ()
 
       method private refill (slice : Slice.t) =
         if not !eof then (
-          slice.len <- Unix.read fd slice.bytes 0 (Bytes.length slice.bytes);
+          slice.len <- MIO.Unix.read fd slice.bytes 0 (Bytes.length slice.bytes);
           slice.off <- 0;
+          Printf.eprintf "READ %S\n%!"
+            (Bytes.sub_string slice.bytes 0 slice.len);
           if slice.len = 0 then eof := true
         )
 
       method close () =
         eof := true;
         if shutdown then (
-          try Unix.shutdown fd Unix.SHUTDOWN_RECEIVE with _ -> ()
+          try MIO.Unix.shutdown fd Unix.SHUTDOWN_RECEIVE with _ -> ()
         );
         if close_noerr then (
-          try Unix.close fd with _ -> ()
+          try MIO.Unix.close fd with _ -> ()
         ) else
-          Unix.close fd
+          MIO.Unix.close fd
     end
 
   (** [instrument ic ~on_read] makes a new buffered input stream.
@@ -82,29 +85,29 @@ end
 module Out = struct
   include Iostream.Out_buf
 
-  class of_fd ?(shutdown = false) ?(close_noerr = false) (fd : Unix.file_descr) :
-    t =
+  class of_fd ?(shutdown = false) ?(close_noerr = false) (fd : Fd.t) : t =
     object
       inherit t_from_output ()
 
       method private output_underlying bs i len0 =
+        Printf.eprintf "IO OUTPUT %S\n%!" (Bytes.sub_string bs i len0);
         let i = ref i in
         let len = ref len0 in
         while !len > 0 do
-          let n = Unix.write fd bs !i !len in
+          let n = MIO.Unix.write fd bs !i !len in
           i := !i + n;
           len := !len - n
         done
 
       method private close_underlying () =
         if shutdown then (
-          try Unix.shutdown fd Unix.SHUTDOWN_SEND with _ -> ()
+          try MIO.Unix.shutdown fd Unix.SHUTDOWN_SEND with _ -> ()
         );
 
         if close_noerr then (
-          try Unix.close fd with _ -> ()
+          try MIO.Unix.close fd with _ -> ()
         ) else
-          Unix.close fd
+          MIO.Unix.close fd
     end
 
   (** [instrument oc ~on_write] returns a new output stream

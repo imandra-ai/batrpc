@@ -146,14 +146,14 @@ let handle_error (self : t) ~(meta : Meta.meta) ~ic () : unit =
     let err = Error.mk_error ~kind:Errors.remote err.msg in
     Log.err (fun k ->
         k "client: received error for id %ld:@ %a" meta.id Error.pp err);
-    Fut.fulfill_idempotent promise (Error (Error.E err, bt))
+    Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt))
   | Some (IF_stream { bt; promise; _ }) ->
     remove_from_tbl_ self meta.id;
     let err = Framing.read_error ~config ~encoding ic ~meta in
     let err = Error.mk_error ~kind:Errors.remote err.msg in
     Log.err (fun k ->
         k "client: received error for id %ld:@ %a" meta.id Error.pp err);
-    Fut.fulfill_idempotent promise (Error (Error.E err, bt))
+    Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt))
 
 let handle_timeout (self : t) id : unit =
   let@ self = Lock.with_lock self.st in
@@ -162,14 +162,22 @@ let handle_timeout (self : t) id : unit =
     (function
       | IF_unary { promise; bt; _ } ->
         remove_from_tbl_ self id;
-        let err = Error.mk_error ~kind:Error_kind.timeout "Timeout" in
+        let err =
+          Error.mk_error
+            ~bt:(Printexc.raw_backtrace_to_string bt)
+            ~kind:Error_kind.timeout "Timeout"
+        in
         Log.err (fun k -> k "client: timeout for id %ld:" id);
-        Fut.fulfill_idempotent promise (Error (Error.E err, bt))
+        Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt))
       | IF_stream { promise; bt; _ } ->
         remove_from_tbl_ self id;
-        let err = Error.mk_error ~kind:Error_kind.timeout "Timeout" in
+        let err =
+          Error.mk_error
+            ~bt:(Printexc.raw_backtrace_to_string bt)
+            ~kind:Error_kind.timeout "Timeout"
+        in
         Log.err (fun k -> k "client: timeout for id %ld" id);
-        Fut.fulfill_idempotent promise (Error (Error.E err, bt)))
+        Fut.fulfill_idempotent promise (Error (Exn_bt.make (Error.E err) bt)))
     entry
 
 let[@inline] apply_middleware rpc (h : _ Handler.t) (m : Middleware.t) :
@@ -222,6 +230,7 @@ let send_request_ (self : t) ~oc ~meta ~rpc req : unit =
   let@ enc = with_pbrt_enc_ self in
   Pbrt.Encoder.clear enc;
 
+  Printf.eprintf "SEND REQ\n%!";
   let@ oc = Lock.with_lock oc in
   Framing.write_req ~enc ~config:self.config ~encoding:self.encoding oc rpc meta
     req;
@@ -281,7 +290,7 @@ let call_client_stream (self : t) ~timer ~(oc : #Io.Out.t Lock.t)
         Service.Value_mode.unary )
       Pbrt_services.Client.rpc) : 'req Push_stream.t * _ Fut.t =
   (* TODO: can we just avoid that? *)
-  let bt = Printexc.get_callstack 5 in
+  let bt = Printexc.get_callstack 10 in
 
   Option.iter check_timeout_ timeout_s;
   let fut, promise = Fut.make () in

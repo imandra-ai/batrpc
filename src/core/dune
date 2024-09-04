@@ -6,22 +6,25 @@
   :standard
   -open
   Imandrakit
-  -open
-  Imandrakit_thread
-  -open
-  Imandrakit_zip)
+  ;-open
+  ;Imandrakit_thread
+  ;-open
+  ;Imandrakit_zip
+  )
  (preprocess
   (pps ppx_deriving.std))
  (libraries
   atomic
   moonpool
+  moonpool-io
   trace.core
-  imandrakit
-  imandrakit.metrics
-  imandrakit.zip
-  imandrakit-thread
-  camlzip
   iostream
+  ;imandrakit
+  ;imandrakit.metrics
+  imandrakit.zip
+  ;imandrakit-thread
+  camlzip
+  ;iostream
   pbrt
   pbrt_yojson
   hmap

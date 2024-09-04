@@ -126,6 +126,7 @@ let run (self : t) : unit =
       | Close -> handle_close self
       | Heartbeat -> handle_heartbeat self ~meta
       | Request ->
+        Printf.eprintf "GOT REQ\n%!";
         State.handle_request self.st ~encoding:self.encoding ~runner:self.runner
           ~meta ~ic:self.ic ~oc:self.oc ()
       | Client_stream_item ->
